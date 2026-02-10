@@ -55,10 +55,15 @@ RISK_CHECK_INTERVAL = 300  # 5分钟检查一次风控
 MAX_RETRIES = 5  # 最大重试次数
 RISK_FACTOR = 0.1  # 风险系数（10%）
 VOLATILITY_WINDOW = 24  # 波动率计算周期（小时）
+MAX_CONSECUTIVE_LOSSES = 5  # 连续亏损保护阈值
+LOSS_COOLDOWN = 300  # 连续亏损触发后冷却时间（秒）
 
 # ==================== 通知配置 ====================
 DINGTALK_WEBHOOK = os.getenv('DINGTALK_WEBHOOK')
 DINGTALK_SECRET = os.getenv('DINGTALK_SECRET')
+WECHAT_WEBHOOK = os.getenv('WECHAT_WEBHOOK')
+BARK_KEY = os.getenv('BARK_KEY')
+BARK_SERVER = os.getenv('BARK_SERVER', 'https://api.day.app')
 
 # ==================== 日志配置 ====================
 LOG_LEVEL = logging.DEBUG  # 设置为DEBUG显示详细日志
@@ -94,7 +99,9 @@ __all__ = [
     'COOLDOWN', 'SAFETY_MARGIN',
     'MAX_DRAWDOWN', 'DAILY_LOSS_LIMIT', 'MAX_POSITION_RATIO', 'MIN_POSITION_RATIO',
     'RISK_CHECK_INTERVAL', 'MAX_RETRIES', 'RISK_FACTOR', 'VOLATILITY_WINDOW',
-    'DINGTALK_WEBHOOK', 'DINGTALK_SECRET',
+    'MAX_CONSECUTIVE_LOSSES', 'LOSS_COOLDOWN',
+    'DINGTALK_WEBHOOK', 'DINGTALK_SECRET', 'WECHAT_WEBHOOK',
+    'BARK_KEY', 'BARK_SERVER',
     'LOG_LEVEL', 'DEBUG_MODE',
     'API_TIMEOUT', 'RECV_WINDOW',
     'INITIAL_BASE_PRICE', 'INITIAL_PRINCIPAL'

@@ -31,6 +31,7 @@ env/
 .vscode/
 *.swp
 *.swo
+.agent/
 *~
 
 # 环境变量配置 (包含敏感信息)

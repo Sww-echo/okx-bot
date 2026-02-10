@@ -1,430 +1,209 @@
-# 交易逻辑详解
+# OKX 交易机器人核心策略白皮书
 
-本文档详细说明 OKX 网格交易机器人的核心交易逻辑。
-
-## 目录
-
-- [网格交易原理](#网格交易原理)
-- [信号检测逻辑](#信号检测逻辑)
-- [交易执行流程](#交易执行流程)
-- [S1 仓位策略](#s1-仓位策略)
-- [动态网格调整](#动态网格调整)
-- [风控机制](#风控机制)
+> [!NOTE]
+> 本文档旨在为量化交易者和开发者提供该项目的**深度技术细节**。内容涵盖数学模型、状态机逻辑、参数配置及异常处理机制。
 
 ---
 
-## 网格交易原理
+## 1. 系统架构与数据流
 
-网格交易是一种量化交易策略，通过在固定价格区间内设置多个买卖点位，利用价格的上下波动来赚取差价利润。
+本系统基于 **Python 异步编程 (asyncio)** 构建，采用事件驱动与轮询结合的架构。核心数据流如下：
 
-### 核心概念
-
-| 概念 | 说明 |
-|------|------|
-| **基准价** | 交易的参考价格，每次成交后更新 |
-| **网格大小** | 触发交易的价格变化百分比 (例如 2%) |
-| **买入触发** | 价格相对基准价下跌超过网格大小 |
-| **卖出触发** | 价格相对基准价上涨超过网格大小 |
-
-### 图示
-
-```
-价格
-  ↑
-  │    ┌─────────────────────────────── 卖出触发线 (+2%)
-  │    │
-  │    │←── 网格大小
-  │    │
-  ├────┼─────────────────────────────── 基准价 (75 USDT)
-  │    │
-  │    │←── 网格大小
-  │    │
-  │    └─────────────────────────────── 买入触发线 (-2%)
-  │
-时间 →
-```
-
-### 交易示例
-
-假设初始设置：
-- 基准价 = **75.00 USDT**
-- 网格大小 = **2%**
-
-| 时间 | 当前价格 | 价差 | 触发信号 | 操作 | 新基准价 |
-|------|---------|------|---------|------|---------|
-| T1 | 75.00 | 0% | 无 | 等待 | 75.00 |
-| T2 | 74.80 | -0.27% | 无 | 等待 | 75.00 |
-| T3 | **73.50** | **-2%** | **买入** | 买入 OKB | **73.50** |
-| T4 | 73.80 | +0.41% | 无 | 等待 | 73.50 |
-| T5 | **74.97** | **+2%** | **卖出** | 卖出 OKB | **74.97** |
-| T6 | 75.20 | +0.31% | 无 | 等待 | 74.97 |
-
----
-
-## 信号检测逻辑
-
-### 代码实现
-
-```python
-# 文件: src/strategies/grid.py
-
-def check_signal(self, current_price: float) -> Tuple[str, float]:
-    """检查交易信号"""
-    if self.base_price <= 0:
-        return None, 0.0
+```mermaid
+graph TD
+    Market[OKX 行情流] -->|Tick (5s)| Trader[GridTrader]
+    Trader -->|价格/资产| Risk[RiskManager]
+    Trader -->|最新价| Strategy[GridStrategy]
     
-    # 计算价格变化百分比
-    price_diff_pct = (current_price - self.base_price) / self.base_price
+    subgraph 决策层
+        Risk -->|Pass/Fail| Trader
+        Strategy -->|Signal (Buy/Sell)| Trader
+        S1[S1Strategy] -->|Position Rebalance| Trader
+    end
     
-    # 卖出信号: 价格上涨超过网格大小
-    if price_diff_pct >= (self.grid_size / 100):
-        return 'sell', price_diff_pct
+    subgraph 执行层
+        Trader -->|Order| Exchange[ExchangeClient]
+        Exchange -->|Fill/Partial| Balance[BalanceService]
+        Balance -->|Update| Risk
+    end
     
-    # 买入信号: 价格下跌超过网格大小
-    elif price_diff_pct <= -(self.grid_size / 100):
-        return 'buy', price_diff_pct
-    
-    return None, price_diff_pct
-```
-
-### 信号判断流程图
-
-```
-                    ┌──────────────────┐
-                    │   获取当前价格    │
-                    └────────┬─────────┘
-                             │
-                             ▼
-              ┌──────────────────────────────┐
-              │  计算价差 = (当前价-基准价)   │
-              │            / 基准价          │
-              └──────────────┬───────────────┘
-                             │
-                             ▼
-                    ┌────────────────┐
-           ┌──────◀│  价差 >= +2%?  │
-           │  是    └───────┬────────┘
-           │                │ 否
-           ▼                ▼
-    ┌────────────┐   ┌────────────────┐
-    │  卖出信号  │   │  价差 <= -2%?  │▶──────┐
-    └────────────┘   └───────┬────────┘  是   │
-                             │ 否             ▼
-                             ▼         ┌────────────┐
-                      ┌──────────┐     │  买入信号  │
-                      │  无信号  │     └────────────┘
-                      └──────────┘
+    subgraph 数据层
+        Trader -->|Save State| Persistence[JSON Storage]
+        Exchange -->|Trade Log| OrderManager
+    end
 ```
 
 ---
 
-## 交易执行流程
+## 2. 策略引擎详解
 
-### 主循环
+### 2.1 动态网格策略 (Core Strategy)
 
-```python
-# 文件: src/core/trade.py
+核心思想：基于**对数收益率**捕捉短期波动，通过高频买卖实现均值回归套利。
 
-async def start(self):
-    """主循环"""
-    while True:
-        # 1. 获取最新价格
-        ticker = await self.exchange.fetch_ticker(self.config.SYMBOL)
-        self.current_price = float(ticker['last'])
-        
-        # 2. 检查网格交易信号
-        await self._process_grid_signals()
-        
-        # 3. 风险检查
-        if await self.risk_manager.multi_layer_check(self.current_price):
-            await asyncio.sleep(5)
-            continue
-        
-        # 4. S1 策略检查
-        await self.s1_strategy.check_and_execute(...)
-        
-        # 5. 网格大小调整
-        await self._adjust_grid_size_if_needed()
-        
-        await asyncio.sleep(5)  # 5秒轮询间隔
-```
+#### **数学模型**
+定义 $P_t$ 为 $t$ 时刻价格，$P_{base}$ 为基准价格，$G$ 为网格大小（百分比）。
+价差比例 $\Delta P$ 计算如下：
 
-### 交易执行
+$$
+\Delta P = \frac{P_t - P_{base}}{P_{base}}
+$$
 
-```python
-async def execute_grid_trade(self, side: str, price: float):
-    """执行网格交易"""
-    
-    # 1. 计算交易量 (总资产的5%)
-    amount = await self._calculate_trade_amount(side, price)
-    
-    # 2. 余额检查
-    if side == 'buy':
-        sufficient, _ = await self.balance_service.check_buy_balance(...)
-    else:
-        sufficient, _ = await self.balance_service.check_sell_balance(...)
-    
-    if not sufficient:
-        return  # 余额不足，取消交易
-    
-    # 3. 下单
-    order = await self.exchange.create_order(
-        symbol=self.config.SYMBOL,
-        type='limit',
-        side=side,
-        amount=amount,
-        price=price
-    )
-    
-    # 4. 记录交易
-    self.order_manager.log_trade({...})
-    
-    # 5. 发送通知
-    self.notifier.send_trade_notification(...)
-    
-    # 6. 更新基准价
-    self.grid_strategy.set_base_price(price)
-```
+#### **信号触发条件**
+- **卖出信号 (Short)**:
+  $$ \Delta P \ge G $$
+  - 动作：卖出 `Amount`
+  - 更新基准价：$P_{base} \leftarrow P_t$
+  
+- **买入信号 (Long)**:
+  $$ \Delta P \le -G $$
+  - 动作：买入 `Amount`
+  - 更新基准价：$P_{base} \leftarrow P_t$
 
-### 交易量计算
+#### **网格大小动态调节 (Adaptive Grid)**
+网格大小 $G$ 不是固定的，而是基于市场波动率 $\sigma$ 动态调整：
+$$ G_t = f(\sigma_{24h}) $$
 
-```python
-async def _calculate_trade_amount(self, side: str, price: float) -> float:
-    """计算交易数量"""
-    
-    # 获取总资产
-    total_assets = await self.balance_service.get_total_assets(price)
-    
-    # 每次交易金额 = 总资产 * 5% (最低 20 USDT)
-    amount_usdt = max(
-        self.config.MIN_TRADE_AMOUNT,  # 20 USDT
-        total_assets * 0.05
-    )
-    
-    # 转换为币种数量
-    amount = amount_usdt / price
-    
-    return float(f"{amount:.3f}")
-```
+其中 $\sigma_{24h}$ 是过去 24 小时对数收益率的年化标准差：
+$$ \sigma = \text{std}(\ln(P_t/P_{t-1})) \times \sqrt{24 \times 365} $$
+
+**映射规则**:
+| 波动率 $\sigma$ | 网格大小 $G$ | 策略意图 |
+| :--- | :--- | :--- |
+| $\sigma < 0.2$ | **1.0%** | 低波动，频繁套利 |
+| $0.2 \le \sigma < 0.4$ | **1.5%** | 正常波动 |
+| $0.4 \le \sigma < 0.6$ | **2.0%** | 加大网格，防止过多磨损 |
+| $\sigma \ge 1.2$ | **4.0%** | 极端行情，大幅放宽网格 |
+
+> **详细代码**: `src.strategies.grid.GridStrategy.update_grid_size`
 
 ---
 
-## S1 仓位策略
+### 2.2 S1 仓位辅助策略 (Trend Assistant)
 
-S1 策略是一种基于每日高低点的仓位调整策略。
+S1 策略用于在长期趋势中辅助调整底仓，基于 Donchian Channel (唐奇安通道) 思想。
 
-### 原理
+#### **参数定义**
+- **周期 ($T$)**: 52 天 (约 2 个月)
+- **高位阈值 ($R_{high}$)**: 50%
+- **低位阈值 ($R_{low}$)**: 70%
 
-- **高位减仓**: 当价格接近 54 日高点时，逐步减少仓位
-- **低位加仓**: 当价格接近 54 日低点时，逐步增加仓位
+#### **计算逻辑**
+1. **每日更新**: 每 24 小时获取一次最近 $T$ 日的日线数据。
+2. **极值计算**:
+   $$ H_{52} = \max(High_{t-1}, ..., High_{t-52}) $$
+   $$ L_{52} = \min(Low_{t-1}, ..., Low_{t-52}) $$
+   
+3. **执行逻辑**:
+   - **减仓 (Take Profit)**:
+     - 条件: $P_t > H_{52}$ **且** 当前仓位 $> R_{high}$
+     - 目标: 卖出至仓位 $= R_{high}$ (保留 50% 底仓)
+     
+   - **加仓 (Buy Dip)**:
+     - 条件: $P_t < L_{52}$ **且** 当前仓位 $< R_{low}$
+     - 目标: 买入至仓位 $= R_{low}$ (增加至 70% 仓位)
 
-### 仓位调整逻辑
-
-```python
-# 文件: src/strategies/position.py
-
-async def check_and_execute(self, current_price, balance_service, symbol):
-    """检查并执行S1仓位调整"""
-    
-    # 计算价格在高低点区间的位置
-    if self.daily_high <= self.daily_low:
-        return
-    
-    position_in_range = (
-        (current_price - self.daily_low) / 
-        (self.daily_high - self.daily_low)
-    )
-    
-    # 获取当前仓位
-    current_position = await balance_service.get_position_ratio(current_price)
-    
-    # 计算目标仓位 (价格越高，目标仓位越低)
-    target_position = 1.0 - position_in_range  # 简化逻辑
-    
-    # 调整仓位
-    if current_position > target_position + 0.1:
-        # 需要减仓
-        await self._execute_reduce(...)
-    elif current_position < target_position - 0.1:
-        # 需要加仓
-        await self._execute_add(...)
-```
-
-### 图示
-
-```
-仓位比例
-100% ├──●──────────────────────────────
-     │   \
- 80% │    \
-     │     \
- 60% │      \
-     │       \
- 40% │        \
-     │         \
- 20% │          \
-     │           \
-  0% ├────────────●──────────────────────
-     │            │
-     低点        高点
-           ← 价格区间 →
-```
+> **详细代码**: `src.strategies.position.S1Strategy.check_and_execute`
 
 ---
 
-## 动态网格调整
+## 3. 风险管理体系 (Risk Management)
 
-网格大小会根据市场波动率自动调整。
+本系统采用三层风控机制 (`RiskManager`)，具有最高优先级的**否决权**。
 
-### 调整逻辑
+### 3.1 资产保护 (Cut-off)
 
-```python
-# 文件: src/strategies/grid.py
+#### **总资产回撤止损 (Drawdown Stop)**
+监控账户净值回撤幅度，防止本金遭受毁灭性打击。
+$$ D = \frac{A_{peak} - A_{current}}{A_{peak}} $$
 
-def update_grid_size(self, volatility: float) -> float:
-    """根据波动率调整网格大小"""
-    
-    # 波动率区间配置
-    volatility_ranges = [
-        {'range': [0.00, 0.02], 'grid': 1.5},  # 低波动 → 小网格
-        {'range': [0.02, 0.04], 'grid': 2.0},  # 中波动 → 中网格
-        {'range': [0.04, 0.08], 'grid': 3.0},  # 高波动 → 大网格
-        {'range': [0.08, 1.00], 'grid': 4.0},  # 极高波动 → 更大网格
-    ]
-    
-    # 根据当前波动率选择网格大小
-    for config in volatility_ranges:
-        if config['range'][0] <= volatility < config['range'][1]:
-            return config['grid']
-    
-    return self.config.INITIAL_GRID  # 默认
-```
+- **阈值**: 15% (`MAX_DRAWDOWN`)
+- **触发动作**:
+  1. 暂停所有**买入**交易。
+  2. 发送 **CRITICAL** 级别告警 (钉钉/企业微信)。
+  3. 系统进入 `Risk Lock` 状态。
 
-### 波动率计算
+#### **每日亏损熔断 (Daily Limit)**
+防止单日大幅亏损，强制冷静期。
+- **重置时间**: UTC 00:00
+- **阈值**: 初始本金的 5% (`DAILY_LOSS_LIMIT`)
+- **触发动作**: 暂停当日所有新开仓位，直至次日 0 点。
 
-```python
-# 文件: src/indicators/volatility.py
+### 3.2 连续亏损保护 (Consecutive Loss Circuit Breaker)
+防止在单边不利行情中频繁试错。
 
-async def calculate_volatility(self, period: int = 24) -> float:
-    """计算波动率 (基于过去N小时的价格标准差)"""
-    
-    # 获取历史K线
-    klines = await self.exchange.fetch_ohlcv(symbol, '1H', limit=period)
-    
-    # 计算收益率
-    closes = [float(k[4]) for k in klines]
-    returns = [(closes[i] - closes[i-1]) / closes[i-1] 
-               for i in range(1, len(closes))]
-    
-    # 计算标准差作为波动率
-    volatility = np.std(returns)
-    
-    return volatility
-```
+- **计数器**: $N_{loss}$ (连续亏损交易笔数)
+- **触发条件**: $N_{loss} \ge 5$ (`MAX_CONSECUTIVE_LOSSES`)
+- **冷却机制**:
+  - 触发后，系统进入 `COOLDOWN` 状态。
+  - 暂停交易 **300 秒** (`LOSS_COOLDOWN`)。
+  - 冷却结束后，$N_{loss}$ 重置为 0。
+- **重置条件**: 只要有一笔盈利交易，$N_{loss}$ 立即重置为 0。
+
+### 3.3 仓位硬约束 (Position Limits)
+- **最大仓位**: 90% (预留 10% 保证金缓冲)
+- **最小底仓**: 10% (防止踏空)
+- **自动补仓**: 当仓位 $< 10\%$ 时，系统通过 `Market Order` 自动补足至 10%。
+
+> **详细代码**: `src.risk.manager.RiskManager`
 
 ---
 
-## 风控机制
+## 4. 资金管理与执行 (Execution)
 
-### 多层风控检查
+### 4.1 交易量计算 (Position Sizing)
+单笔交易量 $V_{trade}$ 基于总资产动态计算：
 
-```python
-# 文件: src/risk/manager.py
+$$ V_{trade} = \max(20\text{ USDT}, A_{total} \times 0.05) $$
 
-async def multi_layer_check(self, current_price: float) -> bool:
-    """
-    多层风控检查
-    返回 True 表示触发风控，应暂停交易
-    """
-    
-    # 1. 仓位检查
-    position_ratio = await self.balance_service.get_position_ratio(current_price)
-    
-    if position_ratio > self.config.MAX_POSITION_PERCENT / 100:
-        self.logger.warning(f"仓位超限 | 当前: {position_ratio:.2%}")
-        return True
-    
-    if position_ratio < self.config.MIN_POSITION_PERCENT / 100:
-        self.logger.warning(f"底仓不足 | 当前: {position_ratio:.2%}")
-        # 触发加仓逻辑
-    
-    # 2. 回撤检查
-    total_assets = await self.balance_service.get_total_assets(current_price)
-    drawdown = (self.peak_assets - total_assets) / self.peak_assets
-    
-    if drawdown > self.config.MAX_DRAWDOWN / 100:
-        self.logger.error(f"回撤超限 | 当前: {drawdown:.2%}")
-        return True
-    
-    return False
-```
+- **下限**: 20 USDT (满足交易所最小下单金额)
+- **比例**: 每次投入总资金的 5%，这种小步快跑策略有助于摊薄成本。
 
-### 风控参数
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `MAX_POSITION_PERCENT` | 最大仓位比例 | 90% |
-| `MIN_POSITION_PERCENT` | 最小底仓比例 | 10% |
-| `MAX_DRAWDOWN` | 最大回撤限制 | 15% |
-| `DAILY_LOSS_LIMIT` | 单日最大亏损 | 5% |
-
-### 风控触发后的行为
-
-```
-风控检查
-    │
-    ├─▶ 仓位超限 (>90%)
-    │       └─▶ 暂停买入，等待卖出
-    │
-    ├─▶ 底仓不足 (<10%)
-    │       └─▶ 暂停卖出，触发加仓
-    │
-    └─▶ 回撤超限 (>15%)
-            └─▶ 暂停所有交易，发送告警
-```
+### 4.2 永续合约适配 (Perpetual Swap)
+系统针对 OKX 永续合约进行了专门适配：
+- **交易对**: `ETH-USDT-SWAP`
+- **杠杆**: **20x**
+- **模式**: **全仓 (Cross Margin)**
+- **单位换算**: 下单时自动将 USDT 金额转换为合约张数 (Contracts)。
 
 ---
 
-## 订单限流
+## 5. 异常处理与系统鲁棒性
 
-为防止短时间内频繁下单，系统实现了订单限流机制。
+### 5.1 网络异常处理
+- **HTTP 错误**: 捕获 `httpx.ConnectError`, `ReadTimeout` 等异常。
+- **指数退避 (Exponential Backoff)**:
+  - 失败第 1 次: 等待 1 秒
+  - 失败第 2 次: 等待 2 秒
+  - ...
+  - 失败第 5 次: 等待 16 秒
 
-```python
-# 文件: src/core/order.py
+### 5.2 优雅退出 (Graceful Shutdown)
+当接收到 `SIGINT` (Ctrl+C) 或 `SIGTERM` 信号时，系统执行以下原子操作：
+1. **设置标志位**: `_running = False`，停止主循环。
+2. **持久化状态**:
+   - `base_price` (基准价)
+   - `grid_size` (当前网格)
+   - `trade_history` (交易流水)
+   - 保存至 `data/*.json` 文件。
+3. **关闭连接**: 等待正在进行的 API 请求完成，然后关闭 HTTP 会话。
+4. **发送报告**: 推送最终状态报告给用户。
 
-class OrderThrottler:
-    def __init__(self, limit: int = 10, interval: int = 60):
-        self.order_timestamps = []
-        self.limit = limit      # 60秒内最多10笔订单
-        self.interval = interval
-    
-    def check_rate(self) -> bool:
-        """检查是否允许下单"""
-        current_time = time.time()
-        
-        # 清理过期时间戳
-        self.order_timestamps = [
-            t for t in self.order_timestamps 
-            if current_time - t < self.interval
-        ]
-        
-        if len(self.order_timestamps) >= self.limit:
-            return False  # 超过限制
-        
-        self.order_timestamps.append(current_time)
-        return True
-```
+> **详细代码**: `src.core.trade.GridTrader.shutdown`
 
 ---
 
-## 总结
+## 6. 环境配置参考
 
-本机器人通过以下机制实现自动化网格交易：
+环境变量 (`.env`) 与核心参数映射：
 
-1. **持续监控** - 每 5 秒获取最新价格
-2. **信号检测** - 根据价格变化判断买卖信号
-3. **风险控制** - 多层风控确保资金安全
-4. **动态调整** - 根据市场状态自动调整参数
-5. **完整记录** - 所有交易详细记录和通知
+| 环境变量 | 参数名 | 默认值 | 作用 |
+|:--- |:--- |:--- |:--- |
+| `TRADE_MODE` | 交易模式 | `swap` | `spot`=现货, `swap`=合约 |
+| `LEVERAGE` | 杠杆倍数 | `20` | 仅合约模式生效 |
+| `INITIAL_BASE_PRICE` | 初始基准价 | `0` | `0`=使用启动时市价 |
+| `INITIAL_PRINCIPAL` | 初始本金 | `1000` | 用于盈亏计算 |
+| `DINGTALK_WEBHOOK` | 钉钉通知 | - | 必需，用于告警 |
 
-> ⚠️ **风险提示**: 量化交易存在风险，请在充分理解策略逻辑后谨慎使用。
+---
+*Generated by Antigravity Agent, 2026-02-10*

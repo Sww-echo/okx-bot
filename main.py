@@ -8,6 +8,7 @@ import platform
 import sys
 import os
 import ssl
+import signal
 
 # 忽略 SSL 证书验证（仅用于开发环境）
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -38,6 +39,21 @@ async def main():
         # 创建配置和交易器实例
         config = TradingConfig()
         trader = GridTrader(config)
+        
+        # 注册信号处理器（优雅退出）
+        loop = asyncio.get_running_loop()
+        
+        def _signal_handler():
+            logging.info("接收到退出信号，正在优雅关闭...")
+            if trader:
+                asyncio.ensure_future(trader.shutdown())
+        
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            try:
+                loop.add_signal_handler(sig, _signal_handler)
+            except NotImplementedError:
+                # Windows 不支持 add_signal_handler，使用备选方案
+                signal.signal(sig, lambda s, f: _signal_handler())
         
         # 初始化交易器（带重试）
         max_init_retries = 10

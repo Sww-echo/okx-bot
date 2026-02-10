@@ -55,7 +55,9 @@ class ExchangeClient:
         self._verify_credentials()
         
         # 代理配置（可选）
-        self.proxy = None
+        self.proxy = os.getenv('HTTP_PROXY') or os.getenv('HTTPS_PROXY')
+        if self.proxy:
+            self.logger.info(f"使用代理: {self.proxy}")
         
         # 初始化各个API模块
         self._init_api_clients()

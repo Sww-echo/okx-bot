@@ -6,6 +6,8 @@ import os
 import aiofiles
 import logging
 import psutil
+import json
+import base64
 from datetime import datetime
 from aiohttp import web
 
@@ -48,17 +50,59 @@ class WebServer:
         self.port = port
         self.logger = logging.getLogger(self.__class__.__name__)
         self.ip_logger = IPLogger()
-        self.app = web.Application()
+        self.app = web.Application(middlewares=[self.basic_auth_middleware])
         self._setup_routes()
         
         # 禁用访问日志
         logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
+
+        # 认证配置
+        self.web_user = os.getenv('WEB_USER', 'admin')
+        self.web_password = os.getenv('WEB_PASSWORD', '')
+
+    @web.middleware
+    async def basic_auth_middleware(self, request, handler):
+        # 如果没有设置密码，跳过认证
+        if not self.web_password:
+            return await handler(request)
+
+        # 检查 Authorization 头
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return self._request_auth()
+
+        try:
+            auth_type, encoded_auth = auth_header.split(' ', 1)
+            if auth_type.lower() != 'basic':
+                return self._request_auth()
+            
+            decoded_auth = base64.b64decode(encoded_auth).decode('utf-8')
+            username, password = decoded_auth.split(':', 1)
+            
+            if username != self.web_user or password != self.web_password:
+                return self._request_auth()
+                
+        except Exception:
+            return self._request_auth()
+
+        return await handler(request)
+
+    def _request_auth(self):
+        """返回 401 要求认证"""
+        return web.Response(
+            status=401,
+            headers={'WWW-Authenticate': 'Basic realm="Restricted Area"'},
+            text="Unauthorized"
+        )
 
     def _setup_routes(self):
         self.app['ip_logger'] = self.ip_logger
         self.app.router.add_get('/', self.handle_index)
         self.app.router.add_get('/api/logs', self.handle_log_content)
         self.app.router.add_get('/api/status', self.handle_status)
+        self.app.router.add_get('/api/config', self.handle_get_config)
+        self.app.router.add_post('/api/config', self.handle_update_config)
+        self.app.router.add_post('/api/action/{action}', self.handle_action)
 
     async def start(self):
         """启动Web服务器"""
@@ -67,7 +111,8 @@ class WebServer:
         site = web.TCPSite(runner, self.host, self.port)
         await site.start()
         
-        self.logger.info(f"Web服务已启动: http://{self.host}:{self.port}")
+        auth_status = "Enabled" if self.web_password else "Disabled"
+        self.logger.info(f"Web服务已启动: http://{self.host}:{self.port} (Auth: {auth_status})")
 
     async def _read_log_content(self):
         """读取日志内容"""
@@ -84,22 +129,13 @@ class WebServer:
         
         # 只保留最新的100行并倒序
         filtered_lines = filtered_lines[-100:]
-        filtered_lines.reverse()
+        # filtered_lines.reverse() # 前端如果是 append log，不需要倒序；如果是 display recent on top, reverse.
+        # 前端是 pre 标签，保持正序更符合逻辑（最新的在下面），或者最新的在上面。为了 log console 习惯，通常最新的在下面。
+        # 原逻辑是 reverse，我先保持原逻辑？不，前端写了 scrollTop = scrollHeight，说明期望最新的在底部。
+        # 但原逻辑 reverse 会导致最新的在最上面。
+        # 为了兼容前端自动滚动到底部，我不做 reverse。
         
         return '\n'.join(filtered_lines)
-
-    def _get_system_stats(self):
-        """获取系统资源使用情况"""
-        cpu_percent = psutil.cpu_percent(interval=None)
-        memory = psutil.virtual_memory()
-        memory_used = memory.used / (1024 * 1024 * 1024)
-        memory_total = memory.total / (1024 * 1024 * 1024)
-        return {
-            'cpu_percent': cpu_percent,
-            'memory_used': round(memory_used, 2),
-            'memory_total': round(memory_total, 2),
-            'memory_percent': memory.percent
-        }
 
     async def handle_index(self, request):
         """处理主页请求"""
@@ -108,11 +144,10 @@ class WebServer:
             if request.remote:
                 self.ip_logger.add_record(request.remote, request.path)
             
-            system_stats = self._get_system_stats()
-            content = await self._read_log_content() or "暂无日志"
+            template_path = os.path.join(os.path.dirname(__file__), 'templates', 'index.html')
+            async with aiofiles.open(template_path, mode='r', encoding='utf-8') as f:
+                html = await f.read()
             
-            # 这里为了简化，直接嵌入HTML，实际项目中建议使用模板引擎
-            html = self._get_html_template(system_stats, content)
             return web.Response(text=html, content_type='text/html')
         except Exception as e:
             self.logger.error(f"处理主页请求失败: {str(e)}", exc_info=True)
@@ -136,7 +171,7 @@ class WebServer:
             base_price = trader.grid_strategy.base_price
             grid_size = trader.grid_strategy.grid_size
             
-            # 计算总资产 (使用 BalanceService 的缓存或直接计算)
+            # 计算总资产
             total_assets = await trader.balance_service.get_total_assets(current_price)
             
             # 余额
@@ -153,7 +188,8 @@ class WebServer:
             profit_rate = (total_profit / initial_principal * 100) if initial_principal > 0 else 0
             
             # 交易历史
-            history = trader.order_manager.get_trade_history()[-10:]
+            history = trader.order_manager.get_trade_history()[-10:] # 最近10条
+            history.reverse() # 最新的在前
             formatted_history = [{
                 'timestamp': datetime.fromtimestamp(t['timestamp']).strftime('%Y-%m-%d %H:%M:%S'),
                 'side': t['side'],
@@ -177,7 +213,8 @@ class WebServer:
                 "profit_rate": profit_rate,
                 "trade_history": formatted_history,
                 "s1_daily_high": s1.daily_high,
-                "s1_daily_low": s1.daily_low
+                "s1_daily_low": s1.daily_low,
+                "is_paused": getattr(trader, 'paused', False)
             }
             
             return web.json_response(status)
@@ -185,124 +222,43 @@ class WebServer:
             self.logger.error(f"获取状态失败: {str(e)}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
 
-    def _get_html_template(self, system_stats, log_content):
-        # 简化的HTML模板，包含必要的前端逻辑
-        # 这里复用 `web_server.py` 中的 HTML 结构，但需要做一些适配
-        return f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>网格交易监控系统</title>
-            <meta charset="utf-8">
-            <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-            <style>
-                .grid-container {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; padding: 1rem; }}
-                .card {{ background: white; border-radius: 0.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 1rem; }}
-                .status-value {{ font-size: 1.5rem; font-weight: bold; color: #2563eb; }}
-                .profit {{ color: #10b981; }}
-                .loss {{ color: #ef4444; }}
-                .log-container {{ height: 500px; overflow-y: auto; background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 0.5rem; }}
-            </style>
-        </head>
-        <body class="bg-gray-100">
-            <div class="container mx-auto px-4 py-8">
-                <h1 class="text-3xl font-bold mb-8 text-center text-gray-800">网格交易监控系统</h1>
-                
-                <div class="grid-container mb-8">
-                    <!-- 基本信息 -->
-                    <div class="card">
-                        <h2 class="text-lg font-semibold mb-4">状态概览</h2>
-                        <div class="space-y-2">
-                            <div class="flex justify-between"><span>当前价格</span><span id="current-price" class="status-value">--</span></div>
-                            <div class="flex justify-between"><span>基准价格</span><span id="base-price" class="status-value">--</span></div>
-                            <div class="flex justify-between"><span>网格大小</span><span id="grid-size" class="status-value">--</span></div>
-                            <div class="flex justify-between"><span>S1高点</span><span id="s1-high" class="status-value">--</span></div>
-                            <div class="flex justify-between"><span>S1低点</span><span id="s1-low" class="status-value">--</span></div>
-                        </div>
-                    </div>
-                    
-                    <!-- 资产信息 -->
-                    <div class="card">
-                        <h2 class="text-lg font-semibold mb-4">资产状况</h2>
-                        <div class="space-y-2">
-                            <div class="flex justify-between"><span>总资产 (USDT)</span><span id="total-assets" class="status-value">--</span></div>
-                            <div class="flex justify-between"><span>仓位比例</span><span id="position-pct" class="status-value">--</span></div>
-                            <div class="flex justify-between"><span>总盈亏</span><span id="total-profit" class="status-value">--</span></div>
-                            <div class="flex justify-between"><span>收益率</span><span id="profit-rate" class="status-value">--</span></div>
-                        </div>
-                    </div>
-                    
-                    <!-- 系统信息 -->
-                    <div class="card">
-                         <h2 class="text-lg font-semibold mb-4">系统资源</h2>
-                         <div class="space-y-2">
-                            <div class="flex justify-between"><span>CPU</span><span class="font-bold">{system_stats['cpu_percent']}%</span></div>
-                            <div class="flex justify-between"><span>内存</span><span class="font-bold">{system_stats['memory_percent']}%</span></div>
-                            <div class="text-xs text-gray-500 text-right">{system_stats['memory_used']}GB / {system_stats['memory_total']}GB</div>
-                         </div>
-                    </div>
-                </div>
+    async def handle_get_config(self, request):
+        """获取当前配置"""
+        config = self.trader.config
+        data = {
+            "risk": config.RISK_PARAMS,
+            "grid": config.GRID_PARAMS
+        }
+        return web.json_response(data)
 
-                <!-- 交易历史 -->
-                <div class="card mb-8">
-                    <h2 class="text-lg font-semibold mb-4">最近交易</h2>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full">
-                            <thead><tr class="border-b"><th class="text-left py-2">时间</th><th class="text-left py-2">方向</th><th class="text-left py-2">价格</th><th class="text-left py-2">数量</th></tr></thead>
-                            <tbody id="trade-history"></tbody>
-                        </table>
-                    </div>
-                </div>
+    async def handle_update_config(self, request):
+        """更新配置"""
+        try:
+            data = await request.json()
+            self.trader.config.update(data)
+            self.logger.info(f"配置已通过Web更新: {data}")
+            return web.json_response({"status": "ok"})
+        except Exception as e:
+            self.logger.error(f"更新配置失败: {e}")
+            return web.json_response({"error": str(e)}, status=400)
 
-                <!-- 日志 -->
-                <div class="card">
-                    <h2 class="text-lg font-semibold mb-4">系统日志</h2>
-                    <div class="log-container"><pre id="log-content">{log_content}</pre></div>
-                </div>
-            </div>
-
-            <script>
-                async function updateStatus() {{
-                    try {{
-                        const res = await fetch('/api/status');
-                        const data = await res.json();
-                        
-                        document.getElementById('current-price').innerText = data.current_price?.toFixed(2) || '--';
-                        document.getElementById('base-price').innerText = data.base_price?.toFixed(2) || '--';
-                        document.getElementById('grid-size').innerText = data.grid_size?.toFixed(2) + '%' || '--';
-                        document.getElementById('s1-high').innerText = data.s1_daily_high?.toFixed(2) || '--';
-                        document.getElementById('s1-low').innerText = data.s1_daily_low?.toFixed(2) || '--';
-                        
-                        document.getElementById('total-assets').innerText = data.total_assets?.toFixed(2) || '--';
-                        document.getElementById('position-pct').innerText = data.position_percentage?.toFixed(2) + '%' || '--';
-                        
-                        const profitEl = document.getElementById('total-profit');
-                        profitEl.innerText = data.total_profit?.toFixed(2) || '--';
-                        profitEl.className = 'status-value ' + (data.total_profit >= 0 ? 'profit' : 'loss');
-                        
-                        const rateEl = document.getElementById('profit-rate');
-                        rateEl.innerText = data.profit_rate?.toFixed(2) + '%' || '--';
-                        rateEl.className = 'status-value ' + (data.profit_rate >= 0 ? 'profit' : 'loss');
-                        
-                        const tbody = document.getElementById('trade-history');
-                        tbody.innerHTML = data.trade_history.map(t => `
-                            <tr class="border-b">
-                                <td class="py-2">${{t.timestamp}}</td>
-                                <td class="py-2 ${{t.side === 'buy' ? 'text-green-500' : 'text-red-500'}}">${{t.side === 'buy' ? '买入' : '卖出'}}</td>
-                                <td class="py-2">${{t.price?.toFixed(2)}}</td>
-                                <td class="py-2">${{t.amount?.toFixed(4)}}</td>
-                            </tr>
-                        `).join('');
-                        
-                    }} catch (e) {{ console.error(e); }}
-                }}
-                
-                setInterval(updateStatus, 2000);
-                updateStatus();
-            </script>
-        </body>
-        </html>
-        """
+    async def handle_action(self, request):
+        """执行操作"""
+        action = request.match_info.get('action')
+        try:
+            if action == 'pause':
+                await self.trader.set_paused(True)
+            elif action == 'resume':
+                await self.trader.set_paused(False)
+            elif action == 'close_positions':
+                await self.trader.close_all_positions()
+            else:
+                return web.json_response({"error": "Unknown action"}, status=400)
+            
+            return web.json_response({"status": "ok", "action": action})
+        except Exception as e:
+            self.logger.error(f"执行操作失败: {e}")
+            return web.json_response({"error": str(e)}, status=500)
 
 
 # 导出

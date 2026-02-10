@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="zh-CN" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OKX 网格交易机器人 - 控制面板</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              slate: {
+                850: "#1e293b",
+                900: "#0f172a",
+                950: "#020617",
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      .glass-card {
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .animate-pulse-slow {
+        animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-slate-950 text-slate-50 font-sans antialiased min-h-screen selection:bg-indigo-500/30"
+  >
+    <!-- Navbar -->
+    <nav
+      class="fixed top-0 left-0 right-0 z-50 glass-card border-b border-white/5"
+    >
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-16">
+          <div class="flex items-center gap-3">
+            <i data-lucide="bot" class="w-8 h-8 text-indigo-400"></i>
+            <span
+              class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400"
+            >
+              OKX Grid Bot
+            </span>
+          </div>
+          <div class="flex items-center gap-4">
+            <div
+              id="connection-status"
+              class="flex items-center gap-2 text-xs font-medium text-emerald-400"
+            >
+              <span class="relative flex h-2 w-2">
+                <span
+                  class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
+                ></span>
+                <span
+                  class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"
+                ></span>
+              </span>
+              <span>系统运行中</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="pt-24 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-6">
+      <!-- Status Overview -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Card 1: Assets -->
+        <div
+          class="glass-card rounded-xl p-5 hover:bg-slate-800/50 transition duration-300"
+        >
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <p class="text-slate-400 text-sm font-medium">
+                总资产估值 (USDT)
+              </p>
+              <h3
+                class="text-2xl font-bold mt-1 tracking-tight"
+                id="total-assets"
+              >
+                Loading...
+              </h3>
+            </div>
+            <div class="p-2 bg-indigo-500/10 rounded-lg">
+              <i data-lucide="wallet" class="w-5 h-5 text-indigo-400"></i>
+            </div>
+          </div>
+          <div class="flex items-center text-sm">
+            <span id="profit-rate" class="font-medium mr-2">--%</span>
+            <span class="text-slate-500">总收益率</span>
+          </div>
+        </div>
+
+        <!-- Card 2: Current Profit -->
+        <div
+          class="glass-card rounded-xl p-5 hover:bg-slate-800/50 transition duration-300"
+        >
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <p class="text-slate-400 text-sm font-medium">累计盈亏 (USDT)</p>
+              <h3
+                class="text-2xl font-bold mt-1 tracking-tight"
+                id="total-profit"
+              >
+                Loading...
+              </h3>
+            </div>
+            <div class="p-2 bg-emerald-500/10 rounded-lg">
+              <i data-lucide="trending-up" class="w-5 h-5 text-emerald-400"></i>
+            </div>
+          </div>
+          <div class="flex items-center text-sm text-slate-500">
+            <span class="mr-1">今日:</span>
+            <span id="daily-profit" class="text-slate-300">--</span>
+          </div>
+        </div>
+
+        <!-- Card 3: Price Info -->
+        <div
+          class="glass-card rounded-xl p-5 hover:bg-slate-800/50 transition duration-300"
+        >
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <p class="text-slate-400 text-sm font-medium">
+                当前价格 / 基准价
+              </p>
+              <div class="flex items-baseline gap-2 mt-1">
+                <h3 class="text-2xl font-bold" id="current-price">--</h3>
+                <span class="text-sm text-slate-400" id="base-price">/ --</span>
+              </div>
+            </div>
+            <div class="p-2 bg-blue-500/10 rounded-lg">
+              <i data-lucide="activity" class="w-5 h-5 text-blue-400"></i>
+            </div>
+          </div>
+          <div
+            class="w-full bg-slate-700/50 h-1.5 rounded-full overflow-hidden"
+          >
+            <div
+              id="price-bar"
+              class="bg-blue-500 h-full rounded-full"
+              style="width: 50%"
+            ></div>
+          </div>
+        </div>
+
+        <!-- Card 4: Grid Info -->
+        <div
+          class="glass-card rounded-xl p-5 hover:bg-slate-800/50 transition duration-300"
+        >
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <p class="text-slate-400 text-sm font-medium">网格状态</p>
+              <h3 class="text-2xl font-bold mt-1 tracking-tight" id="grid-size">
+                --%
+              </h3>
+            </div>
+            <div class="p-2 bg-purple-500/10 rounded-lg">
+              <i data-lucide="grid" class="w-5 h-5 text-purple-400"></i>
+            </div>
+          </div>
+          <div class="flex items-center text-sm text-slate-500">
+            <span
+              >仓位:
+              <span id="position-pct" class="text-slate-300">--%</span></span
+            >
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left Column: Controls & Config (2/3 width) -->
+        <div class="lg:col-span-2 space-y-6">
+          <!-- Action Bar -->
+          <div class="glass-card rounded-xl p-6">
+            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+              <i data-lucide="command" class="w-5 h-5 text-slate-400"></i>
+              操作控制
+            </h3>
+            <div class="flex flex-wrap gap-4">
+              <button
+                onclick="togglePause()"
+                id="btn-pause"
+                class="flex-1 min-w-[140px] px-4 py-3 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-500 border border-yellow-500/50 hover:border-yellow-500 rounded-lg transition flex items-center justify-center gap-2 font-medium"
+              >
+                <i data-lucide="pause-circle" class="w-5 h-5"></i>
+                <span>暂停交易</span>
+              </button>
+
+              <button
+                onclick="confirmCloseAll()"
+                class="flex-1 min-w-[140px] px-4 py-3 bg-red-600/20 hover:bg-red-600/30 text-red-500 border border-red-500/50 hover:border-red-500 rounded-lg transition flex items-center justify-center gap-2 font-medium"
+              >
+                <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                <span>一键平仓</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Config Form -->
+          <div class="glass-card rounded-xl p-6">
+            <div class="flex justify-between items-center mb-6">
+              <h3 class="text-lg font-semibold flex items-center gap-2">
+                <i data-lucide="settings" class="w-5 h-5 text-slate-400"></i>
+                参数设置
+              </h3>
+              <button
+                onclick="saveConfig()"
+                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition flex items-center gap-2"
+              >
+                <i data-lucide="save" class="w-4 h-4"></i>
+                保存配置
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Risk Params -->
+              <div class="space-y-4">
+                <h4
+                  class="text-sm font-medium text-slate-400 uppercase tracking-wider"
+                >
+                  风控参数
+                </h4>
+
+                <div>
+                  <label class="block text-sm text-slate-300 mb-1"
+                    >最大回撤止损 (%)</label
+                  >
+                  <input
+                    type="number"
+                    id="cfg-max-drawdown"
+                    step="0.1"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500 transition"
+                  />
+                </div>
+
+                <div>
+                  <label class="block text-sm text-slate-300 mb-1"
+                    >单日亏损限制 (%)</label
+                  >
+                  <input
+                    type="number"
+                    id="cfg-daily-loss"
+                    step="0.1"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500 transition"
+                  />
+                </div>
+
+                <div>
+                  <label class="block text-sm text-slate-300 mb-1"
+                    >最大持仓比例 (%)</label
+                  >
+                  <input
+                    type="number"
+                    id="cfg-pos-limit"
+                    step="1"
+                    max="100"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500 transition"
+                  />
+                </div>
+              </div>
+
+              <!-- Grid Params -->
+              <div class="space-y-4">
+                <h4
+                  class="text-sm font-medium text-slate-400 uppercase tracking-wider"
+                >
+                  网格参数
+                </h4>
+
+                <div>
+                  <label class="block text-sm text-slate-300 mb-1"
+                    >初始网格大小 (%)</label
+                  >
+                  <input
+                    type="number"
+                    id="cfg-initial-grid"
+                    step="0.1"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500 transition"
+                  />
+                </div>
+
+                <!-- Future Params Placeholder -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Logs & History (1/3 width) -->
+        <div class="space-y-6">
+          <!-- Trade History -->
+          <div class="glass-card rounded-xl p-6 h-[400px] flex flex-col">
+            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+              <i data-lucide="history" class="w-5 h-5 text-slate-400"></i>
+              交易历史
+            </h3>
+            <div
+              class="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar"
+              id="trade-history-list"
+            >
+              <!-- Trade items will be injected here -->
+            </div>
+          </div>
+
+          <!-- System Logs -->
+          <div class="glass-card rounded-xl p-6 h-[400px] flex flex-col">
+            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+              <i data-lucide="terminal" class="w-5 h-5 text-slate-400"></i>
+              实时日志
+            </h3>
+            <div
+              class="flex-1 overflow-y-auto bg-slate-950 rounded-lg p-3 font-mono text-xs text-slate-400 custom-scrollbar"
+              id="log-content"
+            >
+              <!-- Logs -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- JS Logic -->
+    <script>
+      // Initialize Icons
+      lucide.createIcons();
+
+      // State
+      let isPaused = false;
+
+      // Fetch Status
+      async function updateStatus() {
+        try {
+          const res = await fetch("/api/status");
+          if (res.status === 401) {
+            window.location.reload();
+            return;
+          }
+          const data = await res.json();
+
+          // Update Basic Info
+          document.getElementById("total-assets").innerText =
+            data.total_assets?.toFixed(2) || "--";
+          document.getElementById("total-profit").innerText =
+            data.total_profit?.toFixed(2) || "--";
+          document.getElementById("current-price").innerText =
+            data.current_price?.toFixed(2) || "--";
+          document.getElementById("base-price").innerText =
+            "/ " + (data.base_price?.toFixed(2) || "--");
+          document.getElementById("grid-size").innerText =
+            (data.grid_size?.toFixed(2) || "--") + "%";
+          document.getElementById("position-pct").innerText =
+            (data.position_percentage?.toFixed(2) || "--") + "%";
+
+          // Colors
+          const profitEl = document.getElementById("total-profit");
+          profitEl.className =
+            "text-2xl font-bold mt-1 tracking-tight " +
+            (data.total_profit >= 0 ? "text-emerald-400" : "text-rose-400");
+
+          const rateEl = document.getElementById("profit-rate");
+          rateEl.innerText = (data.profit_rate?.toFixed(2) || "--") + "%";
+          rateEl.className =
+            "font-medium mr-2 " +
+            (data.profit_rate >= 0 ? "text-emerald-400" : "text-rose-400");
+
+          // Paused Status from backend (Need to add this field to backend)
+          // For now, we assume local state or update if backend provides it
+          if (data.is_paused !== undefined) {
+            setPausedUI(data.is_paused);
+          }
+
+          // Update Trades
+          const historyHtml = data.trade_history
+            .map(
+              (t) => `
+                    <div class="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-white/5">
+                        <div class="flex flex-col">
+                            <span class="text-xs text-slate-500">${t.timestamp}</span>
+                            <span class="font-medium ${t.side === "buy" ? "text-emerald-400" : "text-rose-400"}">
+                                ${t.side === "buy" ? "买入" : "卖出"} ${t.amount}
+                            </span>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-medium text-slate-200">${t.price}</div>
+                            ${t.profit ? `<div class="text-xs ${t.profit >= 0 ? "text-emerald-500" : "text-rose-500"}">${t.profit.toFixed(2)}</div>` : ""}
+                        </div>
+                    </div>
+                `,
+            )
+            .join("");
+          document.getElementById("trade-history-list").innerHTML = historyHtml;
+        } catch (e) {
+          console.error("Fetch status error", e);
+        }
+      }
+
+      // Fetch Logs
+      async function updateLogs() {
+        try {
+          const res = await fetch("/api/logs");
+          const text = await res.text();
+          const logEl = document.getElementById("log-content");
+          logEl.innerText = text;
+          // Auto scroll to bottom if near bottom
+          logEl.scrollTop = logEl.scrollHeight;
+        } catch (e) {}
+      }
+
+      // Load Config
+      async function loadConfig() {
+        try {
+          const res = await fetch("/api/config");
+          const data = await res.json();
+
+          // Populate inputs
+          if (data.risk) {
+            document.getElementById("cfg-max-drawdown").value =
+              data.risk.max_drawdown * 100;
+            document.getElementById("cfg-daily-loss").value =
+              data.risk.daily_loss_limit * 100;
+            document.getElementById("cfg-pos-limit").value =
+              data.risk.position_limit * 100;
+          }
+          if (data.grid) {
+            document.getElementById("cfg-initial-grid").value =
+              data.grid.initial;
+          }
+
+          // Paused state might be in config or status
+          if (data.is_paused !== undefined) {
+            setPausedUI(data.is_paused);
+          }
+        } catch (e) {
+          console.error("Load config error", e);
+        }
+      }
+
+      async function saveConfig() {
+        const payload = {
+          risk: {
+            max_drawdown:
+              parseFloat(document.getElementById("cfg-max-drawdown").value) /
+              100,
+            daily_loss_limit:
+              parseFloat(document.getElementById("cfg-daily-loss").value) / 100,
+            position_limit:
+              parseFloat(document.getElementById("cfg-pos-limit").value) / 100,
+          },
+          grid: {
+            initial: parseFloat(
+              document.getElementById("cfg-initial-grid").value,
+            ),
+          },
+        };
+
+        try {
+          const res = await fetch("/api/config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (res.ok) {
+            alert("配置已保存！");
+            loadConfig(); // Reload to confirm
+          } else {
+            alert("保存失败");
+          }
+        } catch (e) {
+          alert("网络错误");
+        }
+      }
+
+      // Actions
+      async function sendAction(action) {
+        try {
+          const res = await fetch(`/api/action/${action}`, { method: "POST" });
+          if (res.ok) {
+            return true;
+          }
+          alert("操作失败");
+          return false;
+        } catch (e) {
+          alert("网络错误");
+          return false;
+        }
+      }
+
+      function setPausedUI(paused) {
+        isPaused = paused;
+        const btn = document.getElementById("btn-pause");
+        if (paused) {
+          btn.innerHTML =
+            '<i data-lucide="play-circle" class="w-5 h-5"></i><span>恢复交易</span>';
+          btn.className =
+            "flex-1 min-w-[140px] px-4 py-3 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-500 border border-emerald-500/50 hover:border-emerald-500 rounded-lg transition flex items-center justify-center gap-2 font-medium";
+          lucide.createIcons();
+        } else {
+          btn.innerHTML =
+            '<i data-lucide="pause-circle" class="w-5 h-5"></i><span>暂停交易</span>';
+          btn.className =
+            "flex-1 min-w-[140px] px-4 py-3 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-500 border border-yellow-500/50 hover:border-yellow-500 rounded-lg transition flex items-center justify-center gap-2 font-medium";
+          lucide.createIcons();
+        }
+      }
+
+      async function togglePause() {
+        const action = isPaused ? "resume" : "pause";
+        if (await sendAction(action)) {
+          setPausedUI(!isPaused);
+        }
+      }
+
+      async function confirmCloseAll() {
+        if (
+          confirm("⚠️ 确定要一键平仓吗？\n\n这将市价卖出所有持仓并停止策略！")
+        ) {
+          if (await sendAction("close_positions")) {
+            alert("平仓指令已发送！");
+          }
+        }
+      }
+
+      // Init
+      loadConfig();
+      updateStatus();
+      updateLogs();
+      setInterval(updateStatus, 2000);
+      setInterval(updateLogs, 5000);
+    </script>
+  </body>
+</html>

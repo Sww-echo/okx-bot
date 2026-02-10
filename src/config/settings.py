@@ -152,6 +152,50 @@ class TradingConfig:
     
     def __init__(self):
         """初始化并验证配置"""
+        # 将类属性复制为实例属性，防止修改影响全局（虽然目前单例模式没影响，但为了规范）
+        self.RISK_PARAMS = self.RISK_PARAMS.copy()
+        self.GRID_PARAMS = self.GRID_PARAMS.copy()
+        self.DYNAMIC_INTERVAL_PARAMS = self.DYNAMIC_INTERVAL_PARAMS.copy()
+        
+        self._validate()
+
+    def update(self, data: Dict[str, Any]):
+        """
+        动态更新配置
+        
+        Args:
+            data: 配置字典，支持嵌套更新
+        """
+        # 更新风控参数
+        if 'risk' in data:
+            self.RISK_PARAMS.update(data['risk'])
+            # 同步更新顶级属性
+            if 'max_drawdown' in data['risk']:
+                 self.MAX_DRAWDOWN = float(data['risk']['max_drawdown'])
+            if 'daily_loss_limit' in data['risk']:
+                 self.DAILY_LOSS_LIMIT = float(data['risk']['daily_loss_limit'])
+            if 'position_limit' in data['risk']:
+                 self.MAX_POSITION_RATIO = float(data['risk']['position_limit'])
+
+        # 更新网格参数
+        if 'grid' in data:
+            self.GRID_PARAMS.update(data['grid'])
+            if 'initial' in data['grid']:
+                self.INITIAL_GRID = float(data['grid']['initial'])
+
+        # 直接更新顶级属性
+        for key, value in data.items():
+            if hasattr(self, key) and key not in ['risk', 'grid']:
+                # 类型转换
+                current_value = getattr(self, key)
+                if isinstance(current_value, (int, float)):
+                    try:
+                        setattr(self, key, type(current_value)(value))
+                    except (ValueError, TypeError):
+                        pass # 保持原值
+                else:
+                    setattr(self, key, value)
+        
         self._validate()
     
     def _validate(self):

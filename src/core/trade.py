@@ -49,6 +49,8 @@ class GridTrader:
         
         # 状态变量
         self.initialized = False
+        self._running = True
+        self.paused = False  # 暂停状态
         self.current_price = 0.0
         self.active_orders = {'buy': None, 'sell': None}
         self.buying_or_selling = False
@@ -119,7 +121,7 @@ class GridTrader:
 
     async def start(self):
         """启动主循环"""
-        while True:
+        while self._running:
             try:
                 if not self.initialized:
                     await self.initialize()
@@ -129,10 +131,16 @@ class GridTrader:
                 ticker = await self.exchange.fetch_ticker(target_symbol)
                 self.current_price = float(ticker['last'])
                 
-                # 2. 检查交易信号 (优先)
+                # 2. 检查暂停状态
+                if self.paused:
+                    self.logger.info("交易暂停中...", extra={'throttle_duration': 60}) # 降低日志频率
+                    await asyncio.sleep(5)
+                    continue
+
+                # 3. 检查交易信号 (优先)
                 await self._process_grid_signals()
                 
-                # 3. 如果没有正在进行的交易，执行其他维护任务
+                # 4. 如果没有正在进行的交易，执行其他维护任务
                 if not self.buying_or_selling:
                     # 风险检查
                     if await self.risk_manager.multi_layer_check(self.current_price):
@@ -211,6 +219,14 @@ class GridTrader:
             )
             
             # 4. 记录和通知
+            # 计算预估盈亏 (仅卖出时计算，买入视为0)
+            estimated_profit = 0.0
+            if side == 'sell':
+                estimated_profit = (price - self.grid_strategy.base_price) * amount
+            
+            # 记录交易结果到风控模块
+            self.risk_manager.record_trade_result(estimated_profit)
+
             total = amount * price
             self.order_manager.log_trade({
                 'timestamp': time.time(),
@@ -218,7 +234,7 @@ class GridTrader:
                 'price': price,
                 'amount': amount,
                 'order_id': order.get('ordId', order.get('id', '')),
-                'profit': 0 # 暂时无法计算
+                'profit': estimated_profit
             })
             
             self.notifier.send_trade_notification(
@@ -343,10 +359,46 @@ class GridTrader:
                     
                     self.logger.info(f"成功补足底仓: {order.get('ordId', 'unknown')}")
                     
-                    self.notifier.send(
-                        f"已自动补足底仓\n数量: {amount}\n金额: {target_value_usdt:.2f} USDT", 
-                        title="🚀 自动建仓完成"
-                    )
+                    # 等待成交并获取实际价格
+                    await asyncio.sleep(1) 
+                    try:
+                        order_id = order.get('ordId') or order.get('id')
+                        if order_id:
+                            filled_order = await self.exchange.fetch_order(order_id, target_symbol)
+                            avg_price = float(filled_order.get('avgPx', 0) or 0)
+                            filled_amount = float(filled_order.get('accFillSz', 0) or 0)
+                            
+                            # 如果没有成交价（可能未完全成交），使用当前价
+                            final_price = avg_price if avg_price > 0 else self.current_price
+                            final_amount = filled_amount if filled_amount > 0 else amount
+                            
+                            # 计算实际金额
+                            if TRADE_MODE == 'swap':
+                                # 合约金额估算
+                                amount_msg = f"{int(final_amount)} 张"
+                                total_msg = f"成交均价: {final_price:.2f}"
+                            else:
+                                total_val = final_amount * final_price
+                                amount_msg = f"{final_amount:.4f}"
+                                total_msg = f"总金额: {total_val:.2f} USDT"
+
+                            self.notifier.send(
+                                f"已自动补足底仓\n数量: {amount_msg}\n{total_msg}", 
+                                title="📉 低仓位自动补仓"
+                            )
+                        else:
+                            # 降级：使用预估值
+                            self.notifier.send(
+                                f"已自动补足底仓 (预估)\n数量: {amount}\n金额: {target_value_usdt:.2f} USDT", 
+                                title="📉 低仓位自动补仓"
+                            )
+                    except Exception as inner_e:
+                        self.logger.error(f"获取底仓成交详情失败: {inner_e}")
+                        # 降级发送
+                        self.notifier.send(
+                            f"已自动补足底仓\n数量: {amount}\n金额: {target_value_usdt:.2f} USDT", 
+                            title="📉 低仓位自动补仓"
+                        )
                 except Exception as e:
                     self.logger.error(f"自动建仓下单失败: {str(e)}")
                 finally:
@@ -357,9 +409,96 @@ class GridTrader:
             self.buying_or_selling = False
 
     async def shutdown(self):
-        """关闭资源"""
-        await self.exchange.close()
-        self.logger.info("交易系统已关闭")
+        """优雅关闭：保存状态、通知、释放资源"""
+        self.logger.info("正在执行优雅关闭...")
+        self._running = False
+
+        # 1. 保存交易状态
+        try:
+            state = {
+                'base_price': self.grid_strategy.base_price,
+                'grid_size': self.grid_strategy.grid_size,
+                'current_price': self.current_price,
+                'trade_mode': TRADE_MODE,
+                'symbol': self.config.SYMBOL,
+            }
+            self.persistence.save_state(state)
+            self.logger.info("交易状态已保存")
+        except Exception as e:
+            self.logger.error(f"保存交易状态失败: {e}")
+
+        # 2. 保存交易历史
+        try:
+            history = self.order_manager.get_trade_history()
+            if history:
+                self.persistence.save_trade_history(history)
+                self.logger.info(f"交易历史已保存: {len(history)} 条记录")
+        except Exception as e:
+            self.logger.error(f"保存交易历史失败: {e}")
+
+        # 3. 发送关闭通知
+        try:
+            self.notifier.send(
+                f"- 基准价: **{self.grid_strategy.base_price:.4f}**\n"
+                f"- 网格大小: **{self.grid_strategy.grid_size:.2f}%**\n"
+                f"- 最后价格: **{self.current_price:.4f}**",
+                title="🛑 网格交易系统已关闭"
+            )
+        except Exception as e:
+            self.logger.error(f"发送关闭通知失败: {e}")
+
+        # 4. 关闭交易所连接
+        try:
+            await self.exchange.close()
+        except Exception as e:
+            self.logger.error(f"关闭交易所连接失败: {e}")
+
+        self.logger.info("交易系统已完全关闭")
+
+
+    async def set_paused(self, paused: bool):
+        """设置暂停状态"""
+        self.paused = paused
+        status = "暂停" if paused else "恢复"
+        self.logger.info(f"交易系统已{status}")
+        self.notifier.send(f"交易系统已手动{status}", title=f"🛑 系统{status}")
+
+    async def close_all_positions(self):
+        """一键平仓：市价平掉所有持仓并暂停"""
+        self.logger.warning("正在执行一键平仓...")
+        self.paused = True # 先暂停防止开新仓
+        
+        try:
+            # 1. 撤销所有挂单
+            await self.exchange.cancel_all_orders(self.get_target_symbol())
+            
+            # 2. 获取当前持仓
+            if TRADE_MODE == 'swap':
+                # 合约模式
+                positions = await self.exchange.fetch_positions(self.get_target_symbol())
+                for pos in positions:
+                    if float(pos['pos']) != 0:
+                        # 市价全平
+                        await self.exchange.close_position(
+                            symbol=pos['instId'], 
+                            mgnMode=pos['mgnMode'], 
+                            posSide=pos['posSide']
+                        )
+                        self.logger.info(f"合约持仓已平: {pos['instId']} {pos['posSide']}")
+            else:
+                # 现货模式：卖出所有币
+                balance = await self.balance_service.get_available_balance(self.config.BASE_SYMBOL)
+                if balance * self.current_price > 10: # 最小交易额
+                    await self.exchange.create_order(
+                        self.config.SYMBOL, 'market', 'sell', balance, None
+                    )
+                    self.logger.info(f"现货持仓已平: {balance} {self.config.BASE_SYMBOL}")
+
+            self.notifier.send(f"已执行一键平仓操作，交易暂停。", title="⚠️ 一键平仓执行")
+            return True
+        except Exception as e:
+            self.logger.error(f"一键平仓失败: {str(e)}", exc_info=True)
+            return False
 
 
 # 导出
