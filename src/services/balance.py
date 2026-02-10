@@ -64,7 +64,14 @@ class BalanceService:
             if TRADE_MODE == 'swap':
                 # 合约模式：总资产 = USDT余额 + 未实现盈亏
                 positions = await self.exchange.fetch_positions(SWAP_SYMBOL)
-                upl = sum(float(p.get('upl', 0)) for p in positions)
+                upl = 0
+                for p in positions:
+                    val = p.get('upl', '0')
+                    if val and val.strip():
+                        try:
+                            upl += float(val)
+                        except ValueError:
+                            pass
                 return usdt_total + upl
             else:
                 # 现货模式：总资产 = USDT + 币种价值
@@ -93,7 +100,14 @@ class BalanceService:
                 # OKX U本位永续：1张 = ctVal 币 (如 OKB-USDT-SWAP, ctVal=1 OKB? 需确认)
                 # 简单起见，我们直接获取持仓名义价值 (notionalUsd)
                 positions = await self.exchange.fetch_positions(SWAP_SYMBOL)
-                position_value = sum(float(p.get('notionalUsd', 0)) for p in positions)
+                position_value = 0
+                for p in positions:
+                    val = p.get('notionalUsd', '0')
+                    if val and val.strip():
+                        try:
+                            position_value += float(val)
+                        except ValueError:
+                            pass
                 # 注意：notionalUsd 是名义价值（带杠杆），这里我们要计算的是"仓位占用本金"还是"名义敞口"？
                 # 按照网格策略习惯，通常控制的是"名义敞口比例"
                 return position_value / total_assets

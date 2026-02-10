@@ -7,6 +7,10 @@ import traceback
 import platform
 import sys
 import os
+import ssl
+
+# 忽略 SSL 证书验证（仅用于开发环境）
+ssl._create_default_https_context = ssl._create_unverified_context
 
 from src.core.trade import GridTrader
 from src.config.settings import TradingConfig
