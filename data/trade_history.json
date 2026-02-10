@@ -1,0 +1,58 @@
+[
+  {
+    "timestamp": 1770652673.2437105,
+    "side": "buy",
+    "price": 75.71,
+    "amount": 8.302,
+    "order_id": "3293376701721235456",
+    "profit": 0
+  },
+  {
+    "timestamp": 1770652836.9075613,
+    "side": "buy",
+    "price": 75.65,
+    "amount": 8.304,
+    "order_id": "3293382206023815168",
+    "profit": 0
+  },
+  {
+    "timestamp": 1770697853.1945379,
+    "side": "sell",
+    "price": 76.38,
+    "amount": 53.51,
+    "order_id": "3294892655827505152",
+    "profit": 0
+  },
+  {
+    "timestamp": 1770698404.787335,
+    "side": "buy",
+    "price": 75.56,
+    "amount": 54.058,
+    "order_id": "3294911165593047040",
+    "profit": 0
+  },
+  {
+    "timestamp": 1770698979.3608162,
+    "side": "sell",
+    "price": 76.42,
+    "amount": 53.512,
+    "order_id": "3294930443419537408",
+    "profit": 0
+  },
+  {
+    "timestamp": 1770702410.426968,
+    "side": "buy",
+    "price": 75.61,
+    "amount": 54.052,
+    "order_id": "3295045571393638400",
+    "profit": 0
+  },
+  {
+    "timestamp": 1770706047.707069,
+    "side": "buy",
+    "price": 2040.72,
+    "amount": 1.0,
+    "order_id": "3295167616110579712",
+    "profit": 0
+  }
+]
