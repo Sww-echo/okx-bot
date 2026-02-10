@@ -10,6 +10,7 @@ import json
 import base64
 from datetime import datetime
 from aiohttp import web
+from ..config.constants import STRATEGY_MODE
 
 from ..utils.logging import LogConfig
 
@@ -165,57 +166,68 @@ class WebServer:
         """处理状态API"""
         try:
             trader = self.trader
-            
-            # 获取数据
             current_price = trader.current_price
-            base_price = trader.grid_strategy.base_price
-            grid_size = trader.grid_strategy.grid_size
             
-            # 计算总资产
+            # 公共数据
             total_assets = await trader.balance_service.get_total_assets(current_price)
-            
-            # 余额
-            base_currency = trader.config.BASE_SYMBOL
             usdt_balance = await trader.balance_service.get_available_balance('USDT')
-            coin_balance = await trader.balance_service.get_available_balance(base_currency)
-            
-            # 仓位
-            position_ratio = await trader.balance_service.get_position_ratio(current_price)
-            
-            # 盈亏
-            initial_principal = trader.config.INITIAL_PRINCIPAL
-            total_profit = total_assets - initial_principal if initial_principal > 0 else 0
-            profit_rate = (total_profit / initial_principal * 100) if initial_principal > 0 else 0
-            
-            # 交易历史
-            history = trader.order_manager.get_trade_history()[-10:] # 最近10条
-            history.reverse() # 最新的在前
-            formatted_history = [{
-                'timestamp': datetime.fromtimestamp(t['timestamp']).strftime('%Y-%m-%d %H:%M:%S'),
-                'side': t['side'],
-                'price': t['price'],
-                'amount': t['amount'],
-                'profit': t.get('profit', 0)
-            } for t in history]
-            
-            # S1 数据
-            s1 = trader.s1_strategy
+            coin_balance = await trader.balance_service.get_available_balance(trader.config.BASE_SYMBOL)
             
             status = {
-                "base_price": base_price,
                 "current_price": current_price,
-                "grid_size": grid_size,
                 "total_assets": total_assets,
                 "usdt_balance": usdt_balance,
                 "coin_balance": coin_balance,
-                "position_percentage": position_ratio * 100,
-                "total_profit": total_profit,
-                "profit_rate": profit_rate,
-                "trade_history": formatted_history,
-                "s1_daily_high": s1.daily_high,
-                "s1_daily_low": s1.daily_low,
                 "is_paused": getattr(trader, 'paused', False)
             }
+            
+            if STRATEGY_MODE == 'ma':
+                # MA 策略特有数据
+                ma_summary = await trader.get_status_summary()
+                status.update(ma_summary)
+                # 补充字段以兼容前端显示 (避免undefined)
+                status.update({
+                    "profit_rate": 0, # 暂时填0，后续完善
+                    "total_profit": 0,
+                    "grid_size": 0,
+                    "base_price": 0,
+                    "position_percentage": 0,
+                    "s1_daily_high": 0,
+                    "s1_daily_low": 0,
+                    "trade_history": [] # 暂不显示历史或需适配
+                })
+            else:
+                # 网格策略特有数据
+                base_price = trader.grid_strategy.base_price
+                grid_size = trader.grid_strategy.grid_size
+                position_ratio = await trader.balance_service.get_position_ratio(current_price)
+                
+                initial_principal = trader.config.INITIAL_PRINCIPAL
+                total_profit = total_assets - initial_principal if initial_principal > 0 else 0
+                profit_rate = (total_profit / initial_principal * 100) if initial_principal > 0 else 0
+                
+                history = trader.order_manager.get_trade_history()[-10:]
+                history.reverse()
+                formatted_history = [{
+                    'timestamp': datetime.fromtimestamp(t['timestamp']).strftime('%Y-%m-%d %H:%M:%S'),
+                    'side': t['side'],
+                    'price': t['price'],
+                    'amount': t['amount'],
+                    'profit': t.get('profit', 0)
+                } for t in history]
+                
+                s1 = trader.s1_strategy
+                
+                status.update({
+                    "base_price": base_price,
+                    "grid_size": grid_size,
+                    "position_percentage": position_ratio * 100,
+                    "total_profit": total_profit,
+                    "profit_rate": profit_rate,
+                    "trade_history": formatted_history,
+                    "s1_daily_high": s1.daily_high,
+                    "s1_daily_low": s1.daily_low
+                })
             
             return web.json_response(status)
         except Exception as e:
@@ -225,10 +237,15 @@ class WebServer:
     async def handle_get_config(self, request):
         """获取当前配置"""
         config = self.trader.config
-        data = {
-            "risk": config.RISK_PARAMS,
-            "grid": config.GRID_PARAMS
-        }
+        if STRATEGY_MODE == 'ma':
+            data = {
+                "ma": str(config.MA) # 简单返回
+            }
+        else:
+            data = {
+                "risk": config.RISK_PARAMS,
+                "grid": config.GRID_PARAMS
+            }
         return web.json_response(data)
 
     async def handle_update_config(self, request):

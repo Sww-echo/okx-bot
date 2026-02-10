@@ -14,7 +14,9 @@ import signal
 ssl._create_default_https_context = ssl._create_unverified_context
 
 from src.core.trade import GridTrader
+from src.core.ma_trade import MATrader
 from src.config.settings import TradingConfig
+from src.config.constants import STRATEGY_MODE
 from src.utils.logging import LogConfig
 from src.services.notification import send_pushplus_message
 from src.web.server import WebServer
@@ -33,12 +35,18 @@ async def main():
         # 初始化统一日志配置
         LogConfig.setup_logger()
         logging.info("="*50)
-        logging.info("网格交易系统 (Refactored) 启动")
-        logging.info("="*50)
         
         # 创建配置和交易器实例
         config = TradingConfig()
-        trader = GridTrader(config)
+        
+        if STRATEGY_MODE == 'ma':
+            logging.info("双均线趋势策略 (MA Strategy) 启动")
+            trader = MATrader(config)
+        else:
+            logging.info("网格交易系统 (Grid Strategy) 启动")
+            trader = GridTrader(config)
+            
+        logging.info("="*50)
         
         # 注册信号处理器（优雅退出）
         loop = asyncio.get_running_loop()

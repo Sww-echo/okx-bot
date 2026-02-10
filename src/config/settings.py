@@ -246,4 +246,36 @@ class Settings:
 
 
 # 导出
-__all__ = ['TradingConfig', 'Settings', 'GridParams', 'RiskParams', 'DynamicIntervalParams']
+__all__ = ['TradingConfig', 'Settings', 'GridParams', 'RiskParams', 'DynamicIntervalParams', 'MAConfig']
+
+
+@dataclass
+class MAConfig:
+    """双均线趋势策略参数配置"""
+    
+    # 均线周期
+    TIMEFRAME: str = os.getenv('MA_TIMEFRAME', '1H')
+    PERIODS: List[int] = field(default_factory=lambda: [20, 60, 120])
+    
+    # 风控参数
+    RISK_PER_TRADE: float = float(os.getenv('MA_RISK_PER_TRADE', '0.02'))  # 单笔最大亏损 (账户 2%)
+    TP_RATIO: float = float(os.getenv('MA_TP_RATIO', '3.0'))              # 盈亏比 1:3
+    MAX_LEVERAGE: int = int(os.getenv('MA_MAX_LEVERAGE', '3'))             # 最大实际杠杆
+    
+    # 密集检测
+    SQUEEZE_LOOKBACK: int = int(os.getenv('MA_SQUEEZE_LOOKBACK', '20'))    # 回看周期
+    SQUEEZE_PERCENTILE: float = float(os.getenv('MA_SQUEEZE_PERCENTILE', '20'))  # 低于历史N%视为密集
+    
+    # 突破确认
+    BREAKOUT_BARS: int = 2          # 突破需持续N根K线
+    RETEST_MAX_BARS: int = 10       # 回踩最大等待K线数
+    
+    # 止盈模式: 'fixed' (固定盈亏比) / 'fibonacci' (斐波那契扩展)
+    TP_MODE: str = os.getenv('MA_TP_MODE', 'fixed')
+    FIBO_LEVELS: List[float] = field(default_factory=lambda: [1.618, 2.618, 3.618])
+    
+    # 交易对（继承全局配置）
+    SYMBOL: str = field(default_factory=lambda: os.getenv('SYMBOL', 'OKB/USDT'))
+    
+    # 检查间隔 (秒) - 默认每5分钟检查一次
+    CHECK_INTERVAL: int = int(os.getenv('MA_CHECK_INTERVAL', '300'))

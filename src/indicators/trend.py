@@ -183,5 +183,90 @@ class TrendIndicators:
         }
 
 
+
+    def calculate_ema(self, closes: List[float], period: int) -> float:
+        """计算EMA"""
+        if len(closes) < period:
+            return 0.0
+        return float(pd.Series(closes).ewm(span=period, adjust=False).mean().iloc[-1])
+
+    async def get_six_line_data(self, timeframe: str = '1H', limit: int = 200) -> Dict[str, float]:
+        """获取6条均线数据 (MA20/60/120 + EMA20/60/120)"""
+        try:
+            klines = await self.exchange.fetch_ohlcv(SYMBOL, timeframe=timeframe, limit=limit)
+            if not klines or len(klines) < 120:
+                return {}
+            
+            closes = [float(x[4]) for x in klines]
+            
+            # MA (Simple)
+            ma20 = float(np.mean(closes[-20:]))
+            ma60 = float(np.mean(closes[-60:]))
+            ma120 = float(np.mean(closes[-120:]))
+            
+            # EMA (Exponential)
+            ema20 = self.calculate_ema(closes, 20)
+            ema60 = self.calculate_ema(closes, 60)
+            ema120 = self.calculate_ema(closes, 120)
+            
+            last_kline = klines[-1]
+            return {
+                'MA20': ma20, 'MA60': ma60, 'MA120': ma120,
+                'EMA20': ema20, 'EMA60': ema60, 'EMA120': ema120,
+                'open': float(last_kline[1]),
+                'high': float(last_kline[2]),
+                'low': float(last_kline[3]),
+                'close': float(last_kline[4]),
+                'volume': float(last_kline[5])
+            }
+        except Exception as e:
+            self.logger.error(f"获取6线数据失败: {e}")
+            return {}
+
+    def detect_squeeze(self, lines: Dict[str, float], threshold_pct: float = 0.01) -> bool:
+        """
+        检测均线密集 (基于标准差/均值)
+        
+        Args:
+            lines: get_six_line_data 返回的字典
+            threshold_pct: 密集阈值 (默认1%)
+        """
+        if not lines: return False
+        # 只看均线 (MA/EMA)
+        target_keys = ['MA20', 'MA60', 'MA120', 'EMA20', 'EMA60', 'EMA120']
+        values = [v for k, v in lines.items() if k in target_keys]
+        if not values: return False
+        
+        std = np.std(values)
+        mean = np.mean(values)
+        
+        # 变异系数 < 阈值
+        is_squeeze = (std / mean) < threshold_pct
+        return bool(is_squeeze)
+
+    def detect_alignment(self, lines: Dict[str, float]) -> str:
+        """
+        检测均线排列状态
+        
+        Returns:
+            'long' (多头排列), 'short' (空头排列), 'none' (无序)
+        """
+        if not lines: return 'none'
+        
+        # 多头排列: 短 > 中 > 长
+        # 严格模式：所有短周期 > 所有中周期 > 所有长周期
+        # 宽松模式 (这里采用)：EMA20 > EMA60 > EMA120 且 MA20 > MA60 > MA120
+        
+        long_cond = (lines['EMA20'] > lines['EMA60'] > lines['EMA120']) or \
+                    (lines['MA20'] > lines['MA60'] > lines['MA120'])
+                    
+        short_cond = (lines['EMA20'] < lines['EMA60'] < lines['EMA120']) or \
+                     (lines['MA20'] < lines['MA60'] < lines['MA120'])
+                     
+        if long_cond: return 'long'
+        if short_cond: return 'short'
+        return 'none'
+
+
 # 导出
 __all__ = ['TrendIndicators']

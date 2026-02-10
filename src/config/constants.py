@@ -89,6 +89,18 @@ except ValueError:
     INITIAL_PRINCIPAL = 0
     logging.warning("无效的INITIAL_PRINCIPAL配置，已重置为0")
 
+# ==================== 策略模式 ====================
+# 'grid' = 网格合约策略, 'ma' = 双均线趋势策略
+STRATEGY_MODE = os.getenv('STRATEGY_MODE', 'grid').lower()
+
+# ==================== MA 策略参数 ====================
+MA_TIMEFRAME = os.getenv('MA_TIMEFRAME', '1H')           # K线周期
+MA_PERIODS = [20, 60, 120]                                # 均线周期
+MA_RISK_PER_TRADE = float(os.getenv('MA_RISK_PER_TRADE', '0.02'))  # 单笔最大亏损比例
+MA_TP_RATIO = float(os.getenv('MA_TP_RATIO', '3.0'))      # 止盈盈亏比
+MA_MAX_LEVERAGE = int(os.getenv('MA_MAX_LEVERAGE', '3'))   # 最大实际杠杆
+MA_SQUEEZE_LOOKBACK = int(os.getenv('MA_SQUEEZE_LOOKBACK', '20'))  # 密集检测回看周期
+
 # ==================== 导出所有常量 ====================
 __all__ = [
     'BASE_SYMBOL', 'QUOTE_SYMBOL', 'SYMBOL', 'BASE_CURRENCY',
@@ -104,5 +116,8 @@ __all__ = [
     'BARK_KEY', 'BARK_SERVER',
     'LOG_LEVEL', 'DEBUG_MODE',
     'API_TIMEOUT', 'RECV_WINDOW',
-    'INITIAL_BASE_PRICE', 'INITIAL_PRINCIPAL'
+    'INITIAL_BASE_PRICE', 'INITIAL_PRINCIPAL',
+    'STRATEGY_MODE',
+    'MA_TIMEFRAME', 'MA_PERIODS', 'MA_RISK_PER_TRADE', 'MA_TP_RATIO',
+    'MA_MAX_LEVERAGE', 'MA_SQUEEZE_LOOKBACK',
 ]

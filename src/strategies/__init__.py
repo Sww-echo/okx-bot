@@ -5,5 +5,6 @@
 
 from .grid import GridStrategy
 from .position import S1Strategy
+from .ma import MAStrategy
 
-__all__ = ['GridStrategy', 'S1Strategy']
+__all__ = ['GridStrategy', 'S1Strategy', 'MAStrategy']
