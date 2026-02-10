@@ -110,23 +110,30 @@ class ExchangeClient:
     
     async def load_markets(self) -> bool:
         """加载市场数据"""
-        try:
-            inst_type = 'SWAP' if self.trade_mode == 'swap' else 'SPOT'
-            symbol = SWAP_SYMBOL if self.trade_mode == 'swap' else SYMBOL
-            result = self.market_api.get_tickers(instType=inst_type)
-            if result['code'] == '0':
-                self.markets_loaded = True
-                self.logger.info(f"市场数据加载成功 | 类型: {inst_type} | 交易对: {symbol}")
-                return True
-            else:
-                error_msg = f"加载市场数据失败: {result['msg']} | 错误码: {result['code']}"
-                self.logger.error(error_msg)
-                raise Exception(error_msg)
-        except Exception as e:
-            error_msg = f"加载市场数据失败: {str(e)} | 堆栈信息: {traceback.format_exc()}"
-            self.logger.error(error_msg)
-            self.markets_loaded = False
-            raise Exception(error_msg)
+        max_retries = 5
+        for attempt in range(1, max_retries + 1):
+            try:
+                inst_type = 'SWAP' if self.trade_mode == 'swap' else 'SPOT'
+                symbol = SWAP_SYMBOL if self.trade_mode == 'swap' else SYMBOL
+                result = await asyncio.to_thread(self.market_api.get_tickers, instType=inst_type)
+                if result['code'] == '0':
+                    self.markets_loaded = True
+                    self.logger.info(f"市场数据加载成功 | 类型: {inst_type} | 交易对: {symbol}")
+                    return True
+                else:
+                    error_msg = f"加载市场数据失败: {result['msg']} | 错误码: {result['code']}"
+                    self.logger.error(error_msg)
+                    raise Exception(error_msg)
+            except Exception as e:
+                self.logger.warning(f"加载市场数据失败 (第{attempt}/{max_retries}次): {str(e)}")
+                if attempt < max_retries:
+                    wait = attempt * 3
+                    self.logger.info(f"{wait}秒后重试...")
+                    await asyncio.sleep(wait)
+                else:
+                    self.logger.error("加载市场数据: 已达最大重试次数，放弃")
+                    self.markets_loaded = False
+                    raise
 
     async def fetch_ticker(self, symbol: str) -> Dict:
         """获取行情数据"""
@@ -316,11 +323,11 @@ class ExchangeClient:
             
             # 合约双向持仓需要指定 posSide
             if self.trade_mode == 'swap' and self.pos_side != 'net':
-                # 如果调用方指定了 pos_side 则使用，否则根据 side 推断
-                if pos_side:
-                    params['posSide'] = pos_side
-                else:
-                    params['posSide'] = 'long' if side.lower() == 'buy' else 'short'
+                # 优先使用调用方显式传入的 pos_side
+                # 否则使用配置的 self.pos_side（如 long）
+                # 做多网格：buy=开多, sell=平多，posSide 始终为 long
+                # 做空网格：buy=平空, sell=开空，posSide 始终为 short
+                params['posSide'] = pos_side if pos_side else self.pos_side
             
             if type.lower() != 'market' and price is not None:
                 params['px'] = str(price)

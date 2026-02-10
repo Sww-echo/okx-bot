@@ -39,8 +39,21 @@ async def main():
         config = TradingConfig()
         trader = GridTrader(config)
         
-        # 初始化交易器
-        await trader.initialize()
+        # 初始化交易器（带重试）
+        max_init_retries = 10
+        for attempt in range(1, max_init_retries + 1):
+            try:
+                await trader.initialize()
+                break
+            except Exception as e:
+                if attempt < max_init_retries:
+                    wait = min(attempt * 5, 30)
+                    logging.warning(f"初始化失败 (第{attempt}/{max_init_retries}次): {str(e)}")
+                    logging.info(f"{wait}秒后重试...")
+                    await asyncio.sleep(wait)
+                else:
+                    logging.error(f"初始化失败，已达最大重试次数: {str(e)}")
+                    raise
         
         # 启动Web服务器
         server = WebServer(trader)
@@ -57,7 +70,6 @@ async def main():
     except Exception as e:
         error_msg = f"启动失败: {str(e)}\n{traceback.format_exc()}"
         logging.error(error_msg)
-        send_pushplus_message(error_msg, "致命错误")
     finally:
         if trader:
             await trader.shutdown()

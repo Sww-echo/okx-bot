@@ -102,5 +102,29 @@
     "amount": 1.0,
     "order_id": "3295420755678085120",
     "profit": 0
+  },
+  {
+    "timestamp": 1770719147.00278,
+    "side": "sell",
+    "price": 2051.0,
+    "amount": 1.0,
+    "order_id": "3295607165144023040",
+    "profit": 0
+  },
+  {
+    "timestamp": 1770721666.778165,
+    "side": "sell",
+    "price": 2054.0,
+    "amount": 1.0,
+    "order_id": "3295691712279887872",
+    "profit": 0
+  },
+  {
+    "timestamp": 1770721886.159296,
+    "side": "buy",
+    "price": 2043.68,
+    "amount": 1.0,
+    "order_id": "3295699074021605376",
+    "profit": 0
   }
 ]
