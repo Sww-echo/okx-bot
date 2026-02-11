@@ -1,85 +1,79 @@
-# OKX 网格交易机器人
+# OKX 自动化交易系统
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![OKX](https://img.shields.io/badge/Exchange-OKX-green.svg)](https://okx.com)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-一个基于 OKX 交易所的自动化网格交易机器人，支持实盘和模拟盘交易。
+一个基于 OKX 交易所的自动化交易系统，支持 **网格策略** 和 **MA 双均线趋势策略**，内置 Web 控制面板。
 
 ## ✨ 功能特性
 
-- 🔄 **自动网格交易** - 根据价格波动自动执行买卖操作
-- 📊 **动态网格调整** - 根据市场波动率自动调整网格大小
+- 🔄 **双策略支持** - 网格交易 + MA 双均线趋势策略，一键切换
+- 🌐 **Web 控制面板** - 在浏览器中启动、暂停、停止策略，实时监控
+- 🖥️ **终端 CLI 支持** - 也可直接通过命令行指定并启动策略
+- 📊 **动态参数调节** - 通过前端实时修改策略参数，无需重启
 - 🛡️ **多层风控机制** - 仓位限制、回撤保护、底仓保护
-- 📈 **S1 仓位策略** - 基于每日高低点的仓位调整策略
-- 🌐 **Web 监控界面** - 实时查看交易状态和系统日志
-- 📱 **消息推送** - 支持 PushPlus 交易通知
+- 📈 **回测引擎** - 内置 MA 策略回测，验证参数效果
+- 📱 **消息推送** - 支持 PushPlus / Bark 交易通知
 
-## 📚 使用文档
-
-详细的 **运行命令**、**回测流程** 及 **可视化工具** 说明，请参阅 [USAGE.md](USAGE.md)。
+---
 
 ## 📁 项目结构
 
 ```
-okx-grid-bot/
-├── main.py                 # 主入口文件
-├── config.py               # 配置兼容层
-├── helpers.py              # 辅助函数兼容层
-├── requirements.txt        # 依赖列表
-├── .env                    # 环境变量配置
-├── data/                   # 数据存储目录
-│   └── trade_history.json  # 交易历史记录
-├── logs/                   # 日志目录
-└── src/                    # 核心源码
-    ├── config/             # 配置模块
-    │   ├── settings.py     # 配置类定义
-    │   └── constants.py    # 全局常量
-    ├── core/               # 核心交易模块
-    │   ├── trade.py        # 网格交易器主类
-    │   └── order.py        # 订单管理器
-    ├── services/           # 服务模块
-    │   ├── exchange.py     # OKX 交易所客户端
-    │   ├── balance.py      # 余额管理服务
-    │   ├── notification.py # 消息通知服务
-    │   └── persistence.py  # 数据持久化服务
-    ├── strategies/         # 策略模块
-    │   ├── grid.py         # 网格策略
-    │   └── position.py     # S1 仓位策略
-    ├── indicators/         # 技术指标
-    │   ├── volatility.py   # 波动率指标
-    │   ├── trend.py        # 趋势指标
-    │   └── price.py        # 价格指标
-    ├── risk/               # 风控模块
-    │   └── manager.py      # 风险管理器
-    ├── web/                # Web 服务
-    │   └── server.py       # 监控页面服务器
-    └── utils/              # 工具模块
-        ├── logging.py      # 日志配置
-        ├── decorators.py   # 装饰器
-        └── formatters.py   # 格式化工具
+okx-bot/
+├── main.py                   # 主入口 (CLI + Web服务)
+├── requirements.txt          # Python 依赖
+├── .env                      # 环境变量配置
+├── data/                     # 交易数据 & 回测数据
+├── logs/                     # 日志目录
+├── frontend/                 # React 前端控制面板
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── Dashboard.jsx # 仪表盘 (策略启停控制)
+│   │   │   ├── Parameters.jsx# 参数调节 (双策略 Tab)
+│   │   │   ├── Backtest.jsx  # 回测页面
+│   │   │   └── Logs.jsx      # 实时日志
+│   │   ├── api.js            # API 封装
+│   │   └── App.jsx           # 路由与布局
+│   └── dist/                 # 构建产物 (Nginx 部署用)
+└── src/                      # Python 后端
+    ├── config/
+    │   ├── settings.py       # 配置类 (TradingConfig, MAConfig)
+    │   └── constants.py      # 全局常量
+    ├── core/
+    │   ├── bot_manager.py    # 策略管理器 (BotManager)
+    │   ├── trade.py          # 网格交易器 (GridTrader)
+    │   └── ma_trade.py       # MA 趋势交易器 (MATrader)
+    ├── strategies/           # 策略逻辑
+    ├── indicators/           # 技术指标
+    ├── risk/                 # 风控模块
+    ├── web/
+    │   └── server.py         # Web API 服务器
+    ├── backtest/             # 回测引擎
+    └── services/             # 交易所、通知等服务
 ```
+
+---
 
 ## 🚀 快速开始
 
 ### 1. 安装依赖
 
 ```bash
+# 后端
 pip install -r requirements.txt
+
+# 前端 (如果需要修改 UI)
+cd frontend && npm install
 ```
 
 ### 2. 配置环境变量
 
-复制 `env.example` 为 `.env` 并填写您的配置：
+复制 `env.example` 为 `.env` 并填写：
 
-```bash
-cp env.example .env
-```
-
-编辑 `.env` 文件：
-
-```env
-# 实盘 API (FLAG=0 时使用)
+```ini
+# ── 交易所 API ──
 OKX_API_KEY=your_api_key
 OKX_SECRET_KEY=your_secret_key
 OKX_PASSPHRASE=your_passphrase
@@ -89,70 +83,112 @@ OKX_DEMO_API_KEY=your_demo_api_key
 OKX_DEMO_SECRET_KEY=your_demo_secret_key
 OKX_DEMO_PASSPHRASE=your_demo_passphrase
 
-# 通知配置 (可选)
-PUSHPLUS_TOKEN=your_pushplus_token
+# ── 交易配置 ──
+SYMBOL=OKB/USDT
+FLAG=1                    # 0=实盘, 1=模拟盘
+STRATEGY_MODE=grid        # 默认策略 (grid / ma)
 
-# 交易配置
-INITIAL_BASE_PRICE=600.0
-INITIAL_PRINCIPAL=1000.0
+# ── 通知 (可选) ──
+PUSHPLUS_TOKEN=your_token
+BARK_KEY=your_key
+
+# ── Web 面板认证 (可选) ──
+WEB_USER=admin
+WEB_PASSWORD=your_password
 ```
 
-### 3. 运行机器人
+### 3. 启动系统
+
+有两种使用方式：
+
+#### 方式一：仅启动 Web 服务（推荐）
 
 ```bash
 python main.py
 ```
 
-### 4. 访问监控页面
+启动后访问 http://localhost:58181，在前端 Dashboard 选择策略并启动。
 
-打开浏览器访问：http://localhost:58181
+#### 方式二：终端直接启动策略
 
-## ⚙️ 配置说明
+```bash
+# 启动网格策略
+python main.py --strategy grid
 
-### 交易模式切换
+# 启动 MA 趋势策略
+python main.py --strategy ma
 
-在 `src/config/constants.py` 中修改 `FLAG`：
-
-```python
-FLAG = '0'  # 实盘模式
-FLAG = '1'  # 模拟盘模式
+# 指定端口
+python main.py --strategy grid --port 8080
 ```
 
-### 网格参数
+> 终端模式下 Web 面板同样可用，可以在浏览器中暂停/停止策略。
 
-在 `src/config/settings.py` 中的 `TradingConfig` 类：
+### 4. 前端开发
 
-| 参数                   | 说明                | 默认值 |
-| ---------------------- | ------------------- | ------ |
-| `INITIAL_GRID`         | 初始网格大小 (%)    | 2.0    |
-| `MIN_TRADE_AMOUNT`     | 最小交易金额 (USDT) | 20.0   |
-| `MAX_POSITION_PERCENT` | 最大仓位比例        | 90%    |
-| `MIN_POSITION_PERCENT` | 最小底仓比例        | 10%    |
-
-### 风控参数
-
-| 参数               | 说明         | 默认值 |
-| ------------------ | ------------ | ------ |
-| `MAX_DRAWDOWN`     | 最大回撤限制 | 15%    |
-| `DAILY_LOSS_LIMIT` | 单日最大亏损 | 5%     |
-
-## 📊 网格交易逻辑
-
-```
-基准价 ──────────────────────────────────
-         │
-         │←── 网格大小 (例如 2%)
-         │
-卖出触发 ─┼───────────────────── 价格上涨 ≥ 网格大小 → 卖出
-         │
-基准价 ──┼──────────────────────────────
-         │
-买入触发 ─┼───────────────────── 价格下跌 ≥ 网格大小 → 买入
+```bash
+cd frontend
+npm run dev       # 开发模式 (热重载)
+npm run build     # 构建生产版本到 dist/
 ```
 
-- **买入信号**: 当前价格相对基准价下跌超过网格大小时触发
-- **卖出信号**: 当前价格相对基准价上涨超过网格大小时触发
-- **基准价更新**: 每次交易后，基准价更新为成交价格
+---
+
+## 📊 策略说明
+
+### 网格策略 (Grid)
+
+根据价格波动在预设价格网格内自动买卖，适合震荡行情。
+
+| 参数           | 说明               | 可调范围      |
+| -------------- | ------------------ | ------------- |
+| 初始网格百分比 | 买卖触发的价格间距 | 0.1% – 4.0%   |
+| 最小/最大网格  | 波动率自适应范围   | 0.5% – 8.0%   |
+| 基础下单量     | 每格交易金额       | 10 – 500 USDT |
+| 交易冷却时间   | 同向交易最小间隔   | 10 – 300 秒   |
+| 波动率窗口     | 波动率回看周期     | 6 – 48 小时   |
+
+### MA 双均线趋势策略
+
+基于布林带挤压突破 + 多周期均线确认，适合趋势行情。
+
+| 参数          | 说明            | 可调范围  |
+| ------------- | --------------- | --------- |
+| 挤压百分位    | 布林带挤压阈值  | 5 – 50    |
+| 突破确认K线数 | K线连续突破确认 | 1 – 5 根  |
+| ATR 倍数      | 止损距离乘数    | 0.5× – 4× |
+| 盈亏比        | 止盈/止损比     | 1:1 – 8:1 |
+| 最大杠杆      | 杠杆上限        | 1× – 100× |
+
+---
+
+## 🌐 Web 控制面板
+
+访问地址：http://localhost:58181
+
+### 功能页面
+
+| 页面         | 功能                                   |
+| ------------ | -------------------------------------- |
+| **仪表盘**   | 选择策略、一键启停、实时余额/盈亏/持仓 |
+| **参数调节** | 双策略 Tab 切换、滑块调参、预设方案    |
+| **回测**     | MA 策略历史回测、收益/回撤/胜率分析    |
+| **日志**     | 实时系统日志、按级别筛选               |
+
+### API 端点
+
+| 端点                   | 方法     | 说明                       |
+| ---------------------- | -------- | -------------------------- |
+| `/api/status`          | GET      | 获取系统状态               |
+| `/api/config`          | GET/POST | 获取/修改策略参数          |
+| `/api/strategy/start`  | POST     | 启动策略 `{"mode":"grid"}` |
+| `/api/strategy/stop`   | POST     | 停止策略                   |
+| `/api/strategy/pause`  | POST     | 暂停策略                   |
+| `/api/strategy/resume` | POST     | 恢复策略                   |
+| `/api/log`             | GET      | 获取日志                   |
+| `/api/backtest`        | POST     | 运行回测                   |
+
+---
 
 ## 🛡️ 风控机制
 
@@ -160,74 +196,32 @@ FLAG = '1'  # 模拟盘模式
 2. **回撤保护** - 超过最大回撤时暂停交易
 3. **底仓保护** - 确保维持最低持仓比例
 4. **订单限流** - 防止短时间内频繁下单
+5. **日亏损限制** - 单日亏损超限自动停止
+
+---
 
 ## 📱 消息通知
 
-支持通过 [PushPlus](https://www.pushplus.plus/) 发送交易通知：
+### PushPlus
 
-1. 注册 PushPlus 账号获取 Token
-2. 在 `.env` 文件中配置 `PUSHPLUS_TOKEN`
-3. 系统会在交易执行、错误发生时自动推送通知
+在 `.env` 中配置 `PUSHPLUS_TOKEN`，系统会在交易执行、错误发生时自动推送。
 
-### Bark (iOS 推送)
+### Bark (iOS)
 
-推荐 iPhone 用户使用，实时性高且免费。
+1. App Store 下载 [Bark](https://apps.apple.com/app/id1403753865)
+2. `.env` 中配置 `BARK_KEY`
 
-1. 在 App Store 下载 [Bark](https://apps.apple.com/app/id1403753865)
-2. 打开 App 获取推送 URL 中的 Key
-3. 在 `.env` 中配置：
-   ```ini
-   BARK_KEY=你的Key
-   # BARK_SERVER=https://api.day.app (默认)
-   ```
-
-## 🌐 Web 控制面板
-
-全新设计的暗黑风监控面板，支持实时控制和参数调节。
-访问地址：[http://localhost:58181](http://localhost:58181)
-
-###主要功能
-
-- **仪表盘**: 实时查看总资产、盈亏、持仓比例
-- **控制台**: 一键平仓、暂停/恢复交易
-- **配置**: 动态调整止损比例、网格大小等参数
-
-### 安全配置
-
-建议在云服务器部署时开启认证，在 `.env` 中设置：
-
-```ini
-WEB_USER=admin
-WEB_PASSWORD=your_secure_password
-```
-
-## 🔧 开发说明
-
-### 添加新策略
-
-1. 在 `src/strategies/` 目录下创建新的策略文件
-2. 继承或参考 `GridStrategy` 类的接口
-3. 在 `src/core/trade.py` 中集成新策略
-
-### 添加新指标
-
-1. 在 `src/indicators/` 目录下创建新的指标文件
-2. 实现计算方法
-3. 在需要的地方导入使用
+---
 
 ## ⚠️ 风险提示
 
-> **警告**: 加密货币交易存在高风险。使用本机器人前，请确保您：
+> **警告**: 加密货币交易存在高风险。使用本系统前，请确保您：
 >
-> - 了解网格交易的原理和风险
+> - 了解网格交易和趋势交易的原理与风险
 > - 仅使用可承受损失的资金
-> - 先在模拟盘充分测试
-> - 持续监控机器人运行状态
+> - 先在模拟盘 (`FLAG=1`) 充分测试
+> - 持续监控系统运行状态
 
 ## 📄 许可证
 
 MIT License - 详见 [LICENSE](LICENSE) 文件
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！

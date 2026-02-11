@@ -1,6 +1,12 @@
 """
-网格交易系统主入口
+OKX 交易系统主入口
+
+使用方式:
+  python main.py                     # 仅启动 Web 服务，等待前端控制
+  python main.py --strategy grid     # 启动 Web 服务 + 自动运行网格策略
+  python main.py --strategy ma       # 启动 Web 服务 + 自动运行 MA 策略
 """
+import argparse
 import asyncio
 import logging
 import traceback
@@ -13,90 +19,86 @@ import signal
 # 忽略 SSL 证书验证（仅用于开发环境）
 ssl._create_default_https_context = ssl._create_unverified_context
 
-from src.core.trade import GridTrader
-from src.core.ma_trade import MATrader
 from src.config.settings import TradingConfig
-from src.config.constants import STRATEGY_MODE
 from src.utils.logging import LogConfig
-from src.services.notification import send_pushplus_message
 from src.web.server import WebServer
+from src.core.bot_manager import BotManager
 
 
 # 在Windows平台上设置SelectorEventLoop
 if platform.system() == 'Windows':
-    # 在Windows平台上强制使用SelectorEventLoop
     if sys.version_info[0] == 3 and sys.version_info[1] >= 8:
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description='OKX 交易系统')
+    parser.add_argument(
+        '--strategy', '-s',
+        choices=['grid', 'ma'],
+        default=None,
+        help='启动时自动运行的策略 (grid=网格, ma=双均线)。不指定则仅启动 Web 服务。'
+    )
+    parser.add_argument(
+        '--port', '-p',
+        type=int,
+        default=58181,
+        help='Web 服务端口 (默认 58181)'
+    )
+    return parser.parse_args()
+
+
 async def main():
-    trader = None
+    args = parse_args()
+    manager = None
+
     try:
-        # 初始化统一日志配置
+        # 初始化日志
         LogConfig.setup_logger()
-        logging.info("="*50)
-        
-        # 创建配置和交易器实例
+        logging.info("=" * 50)
+        logging.info("OKX 交易系统启动")
+
+        # 创建配置和策略管理器
         config = TradingConfig()
-        
-        if STRATEGY_MODE == 'ma':
-            logging.info("双均线趋势策略 (MA Strategy) 启动")
-            trader = MATrader(config)
-        else:
-            logging.info("网格交易系统 (Grid Strategy) 启动")
-            trader = GridTrader(config)
-            
-        logging.info("="*50)
-        
-        # 注册信号处理器（优雅退出）
+        manager = BotManager(config)
+
+        # 注册信号处理器
         loop = asyncio.get_running_loop()
-        
+
         def _signal_handler():
             logging.info("接收到退出信号，正在优雅关闭...")
-            if trader:
-                asyncio.ensure_future(trader.shutdown())
-        
+            asyncio.ensure_future(manager.shutdown())
+
         for sig in (signal.SIGINT, signal.SIGTERM):
             try:
                 loop.add_signal_handler(sig, _signal_handler)
             except NotImplementedError:
-                # Windows 不支持 add_signal_handler，使用备选方案
                 signal.signal(sig, lambda s, f: _signal_handler())
-        
-        # 初始化交易器（带重试）
-        max_init_retries = 10
-        for attempt in range(1, max_init_retries + 1):
-            try:
-                await trader.initialize()
-                break
-            except Exception as e:
-                if attempt < max_init_retries:
-                    wait = min(attempt * 5, 30)
-                    logging.warning(f"初始化失败 (第{attempt}/{max_init_retries}次): {str(e)}")
-                    logging.info(f"{wait}秒后重试...")
-                    await asyncio.sleep(wait)
-                else:
-                    logging.error(f"初始化失败，已达最大重试次数: {str(e)}")
-                    raise
-        
-        # 启动Web服务器
-        server = WebServer(trader)
-        web_server_task = asyncio.create_task(server.start())
-        
-        # 启动交易循环
-        trading_task = asyncio.create_task(trader.start())
-        
-        # 等待所有任务完成
-        await asyncio.gather(web_server_task, trading_task)
-        
+
+        # 启动 Web 服务器
+        server = WebServer(manager, port=args.port)
+        await server.start()
+        logging.info("=" * 50)
+
+        # 如果 CLI 指定了策略，自动启动
+        if args.strategy:
+            logging.info(f"CLI 指定策略: {args.strategy}，自动启动...")
+            await manager.start_strategy(args.strategy)
+        else:
+            logging.info("等待前端控制面板启动策略...")
+
+        # 保持运行
+        while True:
+            await asyncio.sleep(1)
+
     except KeyboardInterrupt:
         logging.info("接收到退出信号，正在停止...")
     except Exception as e:
         error_msg = f"启动失败: {str(e)}\n{traceback.format_exc()}"
         logging.error(error_msg)
     finally:
-        if trader:
-            await trader.shutdown()
+        if manager:
+            await manager.shutdown()
         logging.info("系统已完全关闭")
 
 

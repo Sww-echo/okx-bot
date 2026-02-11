@@ -1,8 +1,8 @@
 {
-  "base_price": 2051.95,
-  "grid_size": 2.5,
-  "current_price": 2060.49,
+  "base_price": 1947.84,
+  "grid_size": 0.5,
+  "current_price": 1947.84,
   "trade_mode": "swap",
   "symbol": "ETH-USDT",
-  "_saved_at": "2026-02-11T01:23:04.906926"
+  "_saved_at": "2026-02-11T23:29:01.280610"
 }

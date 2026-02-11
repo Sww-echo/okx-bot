@@ -1,0 +1,135 @@
+# 前端控制面板 — 实施计划
+
+## 设计系统 (via ui-ux-pro-max)
+
+| 项目 | 值 |
+|:---|:---|
+| 风格 | Dark Mode (OLED) |
+| 主色 | `#F59E0B` (金色/信任) |
+| 强调色 | `#8B5CF6` (紫色/CTA) |
+| 背景 | `#0F172A` (深蓝黑) |
+| 文字 | `#F8FAFC` (亮白) |
+| 标题字体 | Orbitron (科技感) |
+| 正文字体 | Exo 2 (可读性) |
+| 图标 | Lucide React (SVG) |
+| 图表 | Recharts (趋势/余额曲线) |
+
+> [!NOTE]
+> 完整设计规范已持久化到 [MASTER.md](file:///c:/Users/sww/Desktop/project/okx-bot/design-system/okx-bot-control-panel/MASTER.md)
+
+---
+
+## 技术架构
+
+```mermaid
+graph LR
+    A["Frontend<br/>Vite + React<br/>okx-bot/frontend/"] -->|fetch /api/*| B["Bot API<br/>aiohttp :58181<br/>src/web/server.py"]
+    B --> C["MAStrategy"]
+    B --> D["Backtester"]
+    B --> E[".env Config"]
+    F["Nginx :80"] -->|/| G["frontend/dist/"]
+    F -->|/api/| B
+```
+
+前端放在 `okx-bot/frontend/` 内部，构建后 Nginx 同时代理静态文件和 API。
+
+---
+
+## 功能模块 (4 页面)
+
+### 📊 Dashboard (仪表盘)
+- 机器人状态卡片（运行/暂停/停止）
+- 账户余额 + 收益曲线 (Recharts Area Chart)
+- 当前持仓列表
+- 最近交易记录表格
+- **暂停/终止按钮**
+
+### ⚙️ Parameters (参数控制)
+- MA 策略参数表单（滑块 + 数字输入）
+  - 均线周期、密集检测、突破确认、ATR 乘数、盈亏比、风险比
+- 参数预设（保守/平衡/激进）
+- 实时保存 → `POST /api/config`
+
+### 📈 Backtest (回测面板)
+- 选择交易对、时间范围
+- 一键回测 → `POST /api/backtest`
+- 结果展示：收益率、胜率、最大回撤
+- 余额曲线图
+- 优化结果 CSV 查看
+
+### 📋 Logs (日志)
+- 实时日志流（轮询 `/api/logs`）
+- 级别筛选（INFO/WARNING/ERROR）
+
+---
+
+## Proposed Changes
+
+### Bot 端 API 增强
+
+#### [MODIFY] [server.py](file:///c:/Users/sww/Desktop/project/okx-bot/src/web/server.py)
+- 添加 CORS 支持
+- `GET /api/positions` — 当前持仓
+- `POST /api/action` — 增加 [pause](file:///c:/Users/sww/Desktop/project/okx-bot/src/core/ma_trade.py#46-50) / `resume` 动作
+- `GET /api/trades` — 最近交易
+- `POST /api/backtest` — 触发回测
+- `GET /api/backtest/results` — 回测结果列表
+
+### 前端项目
+
+#### [NEW] `frontend/` 目录
+```
+frontend/
+├── index.html
+├── package.json
+├── vite.config.js
+├── src/
+│   ├── main.jsx
+│   ├── App.jsx
+│   ├── index.css          # 设计系统 CSS 变量
+│   ├── components/
+│   │   ├── Sidebar.jsx
+│   │   ├── StatusCard.jsx
+│   │   ├── ParamSlider.jsx
+│   │   └── TradeTable.jsx
+│   └── pages/
+│       ├── Dashboard.jsx
+│       ├── Parameters.jsx
+│       ├── Backtest.jsx
+│       └── Logs.jsx
+```
+
+**依赖**：react, react-dom, react-router-dom, recharts, lucide-react
+
+---
+
+## 实施顺序
+
+1. `npx create-vite frontend --template react` 初始化
+2. 建立设计系统 (`index.css` + CSS 变量)
+3. 构建布局骨架 (Sidebar + Router)
+4. 实现 Dashboard 页面
+5. 实现 Parameters 页面
+6. 实现 Backtest 页面
+7. 实现 Logs 页面
+8. 增强 [server.py](file:///c:/Users/sww/Desktop/project/okx-bot/src/web/server.py) API
+9. 联调测试
+10. Nginx 部署配置
+
+---
+
+## 部署方案
+
+```bash
+# 构建前端
+cd frontend && npm run build
+
+# Nginx 配置
+location / {
+    root /www/wwwroot/trading/okx-bot/frontend/dist;
+    try_files $uri /index.html;
+}
+location /api/ {
+    proxy_pass http://127.0.0.1:58181;
+}
+```
