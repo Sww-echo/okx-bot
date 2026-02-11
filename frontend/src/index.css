@@ -616,6 +616,132 @@ tr:hover td {
   min-width: 140px;
 }
 
+.strategy-tab.locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.strategy-tab.locked:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #EF4444;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(2, 6, 23, 0.85); /* Slightly darker */
+  backdrop-filter: blur(8px); /* Stronger blur */
+  z-index: 9999; /* Ensure on top of everything */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-content {
+  background: #0F172A;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  width: 90%;
+  max-width: 420px;
+  box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.7);
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: 24px 24px 16px; /* Optimized padding */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05); /* Softer border */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: #F8FAFC;
+  letter-spacing: -0.01em;
+}
+
+.modal-close {
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  color: #94A3B8;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #F8FAFC;
+  transform: rotate(90deg);
+}
+
+.modal-body {
+  padding: 24px;
+  color: #94A3B8;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.modal-body p {
+  margin: 0 0 12px 0;
+}
+
+.modal-body strong {
+  color: #F8FAFC;
+  font-weight: 600;
+  padding: 0 4px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+}
+
+.modal-tip {
+  margin-top: 20px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px dashed rgba(245, 158, 11, 0.3);
+  padding: 16px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  color: #FBBF24;
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  line-height: 1.6;
+  align-items: start;
+}
+
+.modal-footer {
+  padding: 20px 24px;
+  background: rgba(2, 6, 23, 0.3);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: flex-end;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .strategy-tab:hover {
   color: var(--color-text);
   background: rgba(255,255,255,0.03);

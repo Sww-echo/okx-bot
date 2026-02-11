@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Activity, Wallet, TrendingUp, TrendingDown, Pause, Play, Square, RefreshCw, Grid3X3, Loader2 } from 'lucide-react';
+import { Activity, Wallet, TrendingUp, TrendingDown, Pause, Play, Square, RefreshCw, Grid3X3, Loader2, Lock, X, AlertTriangle, Info } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { api } from '../api';
 
@@ -13,6 +13,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState('grid');
+  const [showLockModal, setShowLockModal] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -91,16 +92,21 @@ export default function Dashboard() {
             <div className="strategy-tabs" style={{ marginBottom: 0, padding: '2px' }}>
               {STRATEGY_OPTIONS.map(opt => {
                 const Icon = opt.icon;
+                const isLocked = !isIdle && activeMode !== opt.value;
                 return (
                   <button
                     key={opt.value}
-                    className={`strategy-tab ${selectedStrategy === opt.value ? 'active' : ''}`}
+                    className={`strategy-tab ${selectedStrategy === opt.value ? 'active' : ''} ${isLocked ? 'locked' : ''}`}
                     style={{ padding: '6px 14px', fontSize: '0.8rem' }}
-                    onClick={() => setSelectedStrategy(opt.value)}
-                    disabled={!isIdle && activeMode !== opt.value}
-                    title={!isIdle && activeMode !== opt.value ? "请先停止当前运行/暂停的策略以切换" : ""}
+                    onClick={() => {
+                        if (isLocked) {
+                            setShowLockModal(true);
+                            return;
+                        }
+                        setSelectedStrategy(opt.value);
+                    }}
                   >
-                    <Icon size={14} />
+                    {isLocked ? <Lock size={14} /> : <Icon size={14} />}
                     <span>{opt.label}</span>
                     {activeMode === opt.value && <span className="strategy-tab-badge">{statusLabel}</span>}
                   </button>
@@ -287,6 +293,33 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+      {/* Lock Modal */}
+      {showLockModal && (
+        <div className="modal-overlay" onClick={() => setShowLockModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">
+                  <AlertTriangle size={22} color="#F59E0B" />
+                  <span>策略切换受限</span>
+              </div>
+              <button className="modal-close" onClick={() => setShowLockModal(false)}><X size={20} /></button>
+            </div>
+            <div className="modal-body">
+              <p>当前正在运行 <strong>{STRATEGY_OPTIONS.find(o => o.value === activeMode)?.label || activeMode}</strong>。</p>
+              <p>为了确保交易状态的一致性，系统禁止在运行状态下直接切换策略。</p>
+              <div className="modal-tip">
+                 <Info size={18} style={{flexShrink: 0, marginTop: 3}} />
+                 <span>
+                   请先点击控制面板上的 <span style={{color:'#EF4444', fontWeight:600}}>停止 (Stop)</span> 按钮，待状态变为“待命”后即可切换。
+                 </span>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-primary" onClick={() => setShowLockModal(false)} style={{padding: '10px 24px', fontSize: '0.95rem'}}>知道了</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
