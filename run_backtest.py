@@ -110,6 +110,11 @@ async def fetch_data(symbol, timeframe, days=None, year=None, start_date=None, e
     if os.path.exists(filename):
         print(f"加载本地数据: {filename}")
         df = pd.read_csv(filename)
+        # 确保数值列类型正确 (避免 object/string 类型导致计算错误)
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        df['timestamp'] = df['timestamp'].astype(int)
+        df = df.dropna(subset=['close'])  # 丢弃无法转换的行
         return df
         
     print(f"从交易所获取数据: {symbol} {timeframe}...")

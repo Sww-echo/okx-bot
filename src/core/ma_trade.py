@@ -50,11 +50,13 @@ class MATrader:
 
     async def close_all_positions(self):
         """平仓所有"""
-        pos = self.position_tracker.get_position()
-        if pos:
-            self.logger.info("手动触发平仓所有")
-            await self.exchange.close_position(symbol=pos.symbol, pos_side=pos.side)
-            self.position_tracker.close_position()
+        all_pos = self.position_tracker.get_all_positions()
+        if all_pos:
+            self.logger.info(f"手动触发平仓所有 ({len(all_pos)} 个持仓)")
+            for sid, pos in list(all_pos.items()):
+                await self.exchange.close_position(symbol=pos.symbol, pos_side=pos.side)
+                self.position_tracker.close_position(sid)
+            self.logger.info("所有持仓已平仓")
 
     async def get_status_summary(self):
         """获取状态摘要"""
@@ -62,7 +64,8 @@ class MATrader:
             "mode": "ma",
             "state": self.strategy.current_state.value if hasattr(self.strategy, 'current_state') else "UNKNOWN",
             "paused": self.paused,
-            "position": self.position_tracker.get_position(),
+            "position": {sid: {"side": p.side, "entry": p.entry_price, "pnl": p.pnl} 
+                         for sid, p in self.position_tracker.get_all_positions().items()},
             "last_squeeze": self.strategy.last_squeeze_high if hasattr(self.strategy, 'last_squeeze_high') else 0
         }
 
@@ -98,16 +101,19 @@ class MATrader:
                 ticker = await self.exchange.fetch_ticker(target_symbol)
                 self.current_price = float(ticker['last'])
                 
-                # 2. 更新持仓监控 (止损/止盈)
-                if self.position_tracker.get_position():
+                # 2. 更新持仓监控 (止损/止盈) - 检查所有持仓
+                if self.position_tracker.has_position():
                     await self._check_position_exit()
                 
                 # 3. 执行策略分析
-                # 仅在无持仓或允许加仓(暂不支持)时分析
-                if not self.position_tracker.get_position():
-                    signal = await self.strategy.analyze(self.indicators)
-                    if signal.type.startswith('OPEN'):
+                # 仅在该策略无持仓时分析 (允许不同策略同时持仓)
+                signal = await self.strategy.analyze(self.indicators)
+                if signal.type.startswith('OPEN'):
+                    # 检查该策略ID是否已有持仓
+                    if not self.position_tracker.has_position(signal.strategy_id):
                         await self._execute_entry(signal)
+                    else:
+                        self.logger.debug(f"策略{signal.strategy_id} 已有持仓，跳过新信号")
 
                 # 4. 休眠 (MA策略不需要高频轮询，建议按K线周期检查，这里设为配置的间隔)
                 await asyncio.sleep(self.ma_config.CHECK_INTERVAL)
@@ -147,24 +153,23 @@ class MATrader:
                 self.logger.warning(f"交易额过小 ({amount_coin*signal.price:.2f}), 跳过")
                 return
             
+            # 2.5 杠杆限制检查
+            actual_leverage = (amount_coin * signal.price) / total_equity if total_equity > 0 else 0
+            if actual_leverage > self.ma_config.MAX_LEVERAGE:
+                self.logger.warning(f"实际杠杆 {actual_leverage:.1f}x 超过限制 {self.ma_config.MAX_LEVERAGE}x, 跳过")
+                return
+            
             # 3. 下单
             side = 'buy' if 'LONG' in signal.type else 'sell'
             pos_side = 'long' if 'LONG' in signal.type else 'short'
             
-            # 转换为合约张数 (假设每张=1币或根据合约面值，这里假设 amount 是币数，需转换)
-            # 简化: 使用 market 单，按数量下单。
-            # 注意: create_order 对于 swap 应该传 sz (contracts)，需根据 amount_coin 换算?
-            # OKX Swap sz is unit of contracts. Contract Val?
-            # 假设 sz = amount_coin for simple implementation or check `exchange` logic.
-            # GridTrader logic: `amount_coin = target_value / price`.
-            
-            # 下单数量修正
-            final_amount = amount_coin # 需根据合约面值调整，暂且假设为币数
+            # 合约模式: 将币数转换为合约张数
             if TRADE_MODE == 'swap':
-                 final_amount = max(1, int(amount_coin)) # 假设 1 contract = 1 coin? No, usually 0.01 or 100.
-                 # 需要ExchangeClient提供换算方法。但这里先简化，假设用户已配置好。
-                 # 或者直接下单
-                 pass
+                final_amount = self.exchange.coin_to_contracts(amount_coin)
+                self.logger.info(f"合约换算: {amount_coin:.6f} 币 -> {final_amount} 张")
+            else:
+                # 现货模式: 直接使用币数
+                final_amount = amount_coin
             
             self.logger.info(f"执行开仓: {side} {final_amount} @ {signal.price}")
             
@@ -208,18 +213,16 @@ class MATrader:
             self.notifier.send_error_notification(f"MA开仓 {signal.type}", str(e))
 
     async def _check_position_exit(self):
-        """检查持仓退出"""
-        pos = self.position_tracker.get_position()
-        if not pos: return
+        """检查所有持仓的退出条件"""
+        triggered = self.position_tracker.update_price(self.current_price)
         
-        exit_reason = self.position_tracker.update_price(self.current_price)
-        
-        if exit_reason:
-            try:
-                self.logger.info(f"触发退出: {exit_reason}")
+        for strategy_id, exit_reason in triggered:
+            pos = self.position_tracker.get_position(strategy_id)
+            if not pos:
+                continue
                 
-                # 平仓方向
-                side = 'sell' if pos.side == 'long' else 'buy'
+            try:
+                self.logger.info(f"触发退出 [策略{strategy_id}]: {exit_reason}")
                 
                 # 执行平仓
                 await self.exchange.close_position(
@@ -228,16 +231,17 @@ class MATrader:
                 )
                 
                 # 清除记录
-                self.position_tracker.close_position()
+                pnl = pos.pnl
+                self.position_tracker.close_position(strategy_id)
                 
                 # 通知
-                pnl_msg = f"盈亏: {pos.pnl:.4f}"
                 self.notifier.send(
+                    f"策略: {strategy_id}\n"
                     f"原因: {exit_reason}\n"
                     f"平仓价格: {self.current_price}\n"
-                    f"{pnl_msg}",
+                    f"盈亏: {pnl:.4f}",
                     title=f"🛑 MA策略平仓"
                 )
                 
             except Exception as e:
-                self.logger.error(f"平仓失败: {e}", exc_info=True)
+                self.logger.error(f"平仓失败 [策略{strategy_id}]: {e}", exc_info=True)

@@ -190,6 +190,38 @@ class TrendIndicators:
             return 0.0
         return float(pd.Series(closes).ewm(span=period, adjust=False).mean().iloc[-1])
 
+    def calculate_atr(self, highs: List[float], lows: List[float], closes: List[float], period: int = 14) -> float:
+        """
+        计算 ATR (Average True Range)
+        
+        Args:
+            highs: 最高价列表
+            lows: 最低价列表
+            closes: 收盘价列表
+            period: ATR 周期 (默认14)
+            
+        Returns:
+            当前 ATR 值
+        """
+        if len(closes) < period + 1:
+            return 0.0
+            
+        trs = []
+        for i in range(1, len(closes)):
+            tr = max(
+                highs[i] - lows[i],              # 当前最高-最低
+                abs(highs[i] - closes[i-1]),      # 当前最高-前收
+                abs(lows[i] - closes[i-1])        # 当前最低-前收
+            )
+            trs.append(tr)
+        
+        # 使用 EMA 平滑 TR
+        if len(trs) < period:
+            return float(np.mean(trs))
+        
+        atr = float(pd.Series(trs).ewm(span=period, adjust=False).mean().iloc[-1])
+        return atr
+
     async def get_six_line_data(self, timeframe: str = '1H', limit: int = 200) -> Dict[str, float]:
         """获取6条均线数据 (MA20/60/120 + EMA20/60/120)"""
         try:
@@ -198,6 +230,8 @@ class TrendIndicators:
                 return {}
             
             closes = [float(x[4]) for x in klines]
+            highs = [float(x[2]) for x in klines]
+            lows = [float(x[3]) for x in klines]
             
             # MA (Simple)
             ma20 = float(np.mean(closes[-20:]))
@@ -209,10 +243,14 @@ class TrendIndicators:
             ema60 = self.calculate_ema(closes, 60)
             ema120 = self.calculate_ema(closes, 120)
             
+            # ATR (Average True Range)
+            atr = self.calculate_atr(highs, lows, closes, period=14)
+            
             last_kline = klines[-1]
             return {
                 'MA20': ma20, 'MA60': ma60, 'MA120': ma120,
                 'EMA20': ema20, 'EMA60': ema60, 'EMA120': ema120,
+                'ATR': atr,
                 'open': float(last_kline[1]),
                 'high': float(last_kline[2]),
                 'low': float(last_kline[3]),
@@ -253,15 +291,13 @@ class TrendIndicators:
         """
         if not lines: return 'none'
         
-        # 多头排列: 短 > 中 > 长
-        # 严格模式：所有短周期 > 所有中周期 > 所有长周期
-        # 宽松模式 (这里采用)：EMA20 > EMA60 > EMA120 且 MA20 > MA60 > MA120
+        # 折中方案: EMA 组必须严格排列，MA 组只检查 短>中 (MA120 转向慢，不强制)
         
-        long_cond = (lines['EMA20'] > lines['EMA60'] > lines['EMA120']) or \
-                    (lines['MA20'] > lines['MA60'] > lines['MA120'])
+        long_cond = (lines['EMA20'] > lines['EMA60'] > lines['EMA120']) and \
+                    (lines['MA20'] > lines['MA60'])
                     
-        short_cond = (lines['EMA20'] < lines['EMA60'] < lines['EMA120']) or \
-                     (lines['MA20'] < lines['MA60'] < lines['MA120'])
+        short_cond = (lines['EMA20'] < lines['EMA60'] < lines['EMA120']) and \
+                     (lines['MA20'] < lines['MA60'])
                      
         if long_cond: return 'long'
         if short_cond: return 'short'

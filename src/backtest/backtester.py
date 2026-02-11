@@ -12,6 +12,7 @@ from ..strategies.ma import MAStrategy, Signal
 from ..indicators.trend import TrendIndicators
 from .sim_exchange import SimExchange
 from .report import BacktestReport # 稍后创建
+import numpy as np
 
 class Backtester:
     """MA 策略回测器"""
@@ -70,21 +71,30 @@ class Backtester:
         self.logger.info("回测完成")
         
     async def _execute_open(self, signal: Signal, timestamp):
-        # 简单全仓或固定比例
+        # 检查同策略是否已有未平仓持仓
+        for t in self.trades:
+            if t['status'] == 'OPEN' and t.get('strategy') == signal.strategy_id:
+                return  # 同策略已有持仓，跳过
+                
+        # 检查总开仓数量限制
+        open_count = sum(1 for t in self.trades if t['status'] == 'OPEN')
+        if open_count >= 2:  # 最多同时2个持仓 (A+B)
+            return
+        
+        # 类型安全
+        price = float(signal.price)
+        stop_loss = float(signal.stop_loss)
+        take_profit = float(signal.take_profit) if signal.take_profit else price * 1.1
+        
         balance = self.exchange.balance
         risk_amt = balance * self.config.RISK_PER_TRADE
-        dist = abs(signal.price - signal.stop_loss)
+        dist = abs(price - stop_loss)
         if dist == 0: return
         
         amount = risk_amt / dist
         
-        # DEBUG
-        if not isinstance(amount, (int, float)) and not isinstance(amount, np.float64):
-             self.logger.error(f"DEBUG: amount type {type(amount)} value {amount}")
-             self.logger.error(f"DEBUG: risk_amt {risk_amt} dist {dist}")
-        
-        cost = amount * signal.price
-        if cost > balance: amount = balance / signal.price * 0.95 # 资金不足则满仓
+        cost = amount * price
+        if cost > balance: amount = balance / price * 0.95
         
         side = 'buy' if 'LONG' in signal.type else 'sell'
         
@@ -94,17 +104,17 @@ class Backtester:
             type='market',
             side=side,
             amount=amount,
-            pos_side='long' if side=='buy' else 'short' # 简化单向
+            pos_side='long' if side=='buy' else 'short'
         )
         
         # 记录交易
         trade = {
             'entry_time': timestamp,
-            'entry_price': order['avgPx'],
+            'entry_price': float(order['avgPx']),
             'side': side,
-            'amount': amount,
-            'sl': signal.stop_loss,
-            'tp': signal.take_profit,
+            'amount': float(amount),
+            'sl': stop_loss,
+            'tp': take_profit,
             'reason': signal.reason,
             'status': 'OPEN',
             'strategy': signal.strategy_id
@@ -112,9 +122,9 @@ class Backtester:
         self.trades.append(trade)
 
     async def _check_exits(self, current_bar):
-        current_price = current_bar['close']
-        high = current_bar['high']
-        low = current_bar['low']
+        current_price = float(current_bar['close'])
+        high = float(current_bar['high'])
+        low = float(current_bar['low'])
         
         for trade in self.trades:
             if trade['status'] != 'OPEN': continue

@@ -121,6 +121,11 @@ class ExchangeClient:
                 if result['code'] == '0':
                     self.markets_loaded = True
                     self.logger.info(f"市场数据加载成功 | 类型: {inst_type} | 交易对: {symbol}")
+                    
+                    # 合约模式下加载合约信息 (面值等)
+                    if self.trade_mode == 'swap':
+                        await self._load_contract_info()
+                    
                     return True
                 else:
                     error_msg = f"加载市场数据失败: {result['msg']} | 错误码: {result['code']}"
@@ -136,6 +141,55 @@ class ExchangeClient:
                     self.logger.error("加载市场数据: 已达最大重试次数，放弃")
                     self.markets_loaded = False
                     raise
+
+    async def _load_contract_info(self):
+        """加载合约信息 (面值、最小下单量等)"""
+        try:
+            result = await asyncio.to_thread(
+                self.public_api.get_instruments, instType='SWAP', instId=SWAP_SYMBOL
+            )
+            if result['code'] == '0' and result['data']:
+                info = result['data'][0]
+                self.contract_value = float(info.get('ctVal', 0.01))  # 合约面值 (币)
+                self.min_size = float(info.get('minSz', 1))           # 最小下单张数
+                self.lot_size = float(info.get('lotSz', 1))           # 下单步长 (张)
+                self.logger.info(
+                    f"合约信息: {SWAP_SYMBOL} | 面值: {self.contract_value} 币/张 | "
+                    f"最小: {self.min_size} 张 | 步长: {self.lot_size} 张"
+                )
+            else:
+                self.logger.warning(f"获取合约信息失败, 使用默认值 ctVal=0.01")
+                self.contract_value = 0.01
+                self.min_size = 1
+                self.lot_size = 1
+        except Exception as e:
+            self.logger.warning(f"获取合约信息异常: {e}, 使用默认值")
+            self.contract_value = 0.01
+            self.min_size = 1
+            self.lot_size = 1
+
+    def coin_to_contracts(self, amount_coin: float) -> int:
+        """
+        将币数转换为合约张数
+        
+        Args:
+            amount_coin: 币数 (如 0.5 ETH)
+            
+        Returns:
+            合约张数 (整数)
+        """
+        ct_val = getattr(self, 'contract_value', 0.01)
+        lot_sz = getattr(self, 'lot_size', 1)
+        min_sz = getattr(self, 'min_size', 1)
+        
+        if ct_val <= 0:
+            ct_val = 0.01
+            
+        contracts = amount_coin / ct_val
+        # 按步长取整 (向下)
+        contracts = int(contracts / lot_sz) * lot_sz
+        contracts = max(contracts, min_sz)  # 至少最小张数
+        return int(contracts)
 
     async def fetch_ticker(self, symbol: str) -> Dict:
         """获取行情数据"""

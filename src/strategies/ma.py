@@ -38,6 +38,8 @@ class MAStrategy:
         self.last_squeeze_high = 0.0
         self.last_squeeze_low = 0.0
         self.squeeze_cooldown = 0
+        self.breakout_bars_count = 0          # 连续突破K线计数 (问题5: 突破确认)
+        self.breakout_direction = None        # 'long' or 'short'
         
     async def analyze(self, indicators: TrendIndicators) -> Signal:
         """
@@ -60,7 +62,7 @@ class MAStrategy:
         
         # 2. 市场状态识别
         # 密集检测
-        # 密集检测 (阈值: 20 -> 0.02)
+        # SQUEEZE_PERCENTILE / 1000 = 变异系数阈值 (例: 25 -> 0.025 即均线标准差<均值的2.5%)
         is_squeeze = indicators.detect_squeeze(lines, self.config.SQUEEZE_PERCENTILE / 1000)
         
         if is_squeeze:
@@ -103,20 +105,48 @@ class MAStrategy:
         
         if self.squeeze_cooldown > 0:
             if self.current_state == MarketState.TREND_LONG:
-                if current_price > self.last_squeeze_high * 1.001: # 略微突破
-                    return self._create_signal(
-                        'OPEN_LONG', current_price, 
-                        f"策略A: 密集向上突破 (Range High: {self.last_squeeze_high:.2f})", 
-                        'A', stop_loss_price=self.last_squeeze_low
-                    )
+                if current_price > self.last_squeeze_high * (1 + self.config.BREAKOUT_THRESHOLD):
+                    # 连续突破确认: 需连续N根K线站稳突破位
+                    if self.breakout_direction == 'long':
+                        self.breakout_bars_count += 1
+                    else:
+                        self.breakout_direction = 'long'
+                        self.breakout_bars_count = 1
+                    
+                    if self.breakout_bars_count >= self.config.BREAKOUT_BARS:
+                        self.breakout_bars_count = 0
+                        self.breakout_direction = None
+                        return self._create_signal(
+                            'OPEN_LONG', current_price, 
+                            f"策略A: 密集向上突破确认 (连续{self.config.BREAKOUT_BARS}根, High: {self.last_squeeze_high:.2f})", 
+                            'A', stop_loss_price=self.last_squeeze_low
+                        )
+                else:
+                    # 未站稳突破位，重置计数
+                    if self.breakout_direction == 'long':
+                        self.breakout_bars_count = 0
+                        self.breakout_direction = None
             
             elif self.current_state == MarketState.TREND_SHORT:
-                if current_price < self.last_squeeze_low * 0.999:
-                    return self._create_signal(
-                        'OPEN_SHORT', current_price, 
-                        f"策略A: 密集向下突破 (Range Low: {self.last_squeeze_low:.2f})", 
-                        'A', stop_loss_price=self.last_squeeze_high
-                    )
+                if current_price < self.last_squeeze_low * (1 - self.config.BREAKOUT_THRESHOLD):
+                    if self.breakout_direction == 'short':
+                        self.breakout_bars_count += 1
+                    else:
+                        self.breakout_direction = 'short'
+                        self.breakout_bars_count = 1
+                    
+                    if self.breakout_bars_count >= self.config.BREAKOUT_BARS:
+                        self.breakout_bars_count = 0
+                        self.breakout_direction = None
+                        return self._create_signal(
+                            'OPEN_SHORT', current_price, 
+                            f"策略A: 密集向下突破确认 (连续{self.config.BREAKOUT_BARS}根, Low: {self.last_squeeze_low:.2f})", 
+                            'A', stop_loss_price=self.last_squeeze_high
+                        )
+                else:
+                    if self.breakout_direction == 'short':
+                        self.breakout_bars_count = 0
+                        self.breakout_direction = None
 
         # ==================== 策略 B: MA20 回踩 (趋势中继) ====================
         # 条件:
@@ -126,26 +156,27 @@ class MAStrategy:
         # 4. MA20 方向需正确 (简单判断: MA20 > MA60)
         
         ma20 = lines['MA20']
+        atr = lines.get('ATR', 0)
         
         if self.current_state == MarketState.TREND_LONG:
             # 回踩支撑
             if low_price <= ma20 and current_price >= ma20:
-                 # 可以增加过滤器: 如前一根K线也是多头排列
+                 # ATR 动态止损: MA20 下方 1.5 倍 ATR (自适应波动率)
+                 sl_distance = atr * self.config.ATR_MULTIPLIER if atr > 0 else ma20 * 0.02
                  return self._create_signal(
                      'OPEN_LONG', current_price,
-                     f"策略B: 上涨回踩MA20确认 (MA20: {ma20:.2f})",
-                     'B', stop_loss_price=ma20 * 0.98 # 止损设在MA20下方2%? 或者使用ATR？
-                     # 策略文档: "跌破MA20离场"
-                     # 这里暂时设一个固定比例作为初始止损，后续由PositionTracker跟踪
+                     f"策略B: 上涨回踩MA20确认 (MA20: {ma20:.2f}, ATR: {atr:.2f})",
+                     'B', stop_loss_price=ma20 - sl_distance
                  )
 
         if self.current_state == MarketState.TREND_SHORT:
             # 反弹受阻
             if high_price >= ma20 and current_price <= ma20:
+                sl_distance = atr * self.config.ATR_MULTIPLIER if atr > 0 else ma20 * 0.02
                 return self._create_signal(
                     'OPEN_SHORT', current_price,
-                    f"策略B: 下跌反弹MA20受阻 (MA20: {ma20:.2f})",
-                    'B', stop_loss_price=ma20 * 1.02
+                    f"策略B: 下跌反弹MA20受阻 (MA20: {ma20:.2f}, ATR: {atr:.2f})",
+                    'B', stop_loss_price=ma20 + sl_distance
                 )
                 
         return Signal('NONE', current_price, "观察中")

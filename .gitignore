@@ -74,4 +74,4 @@ coverage.xml
 # 回测导出文件与数据
 backtest_result.png
 backtest_report.html
-data/*.csv
+# data/*.csv

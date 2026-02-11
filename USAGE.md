@@ -95,12 +95,16 @@ python visualize.py
 如果您在 Linux 或 WSL 环境下运行，`screen` 是最常用的持久化工具：
 
 1.  **创建并进入新会话**:
+
     ```bash
     screen -S okx-bot
     ```
+
+    pip3 install -r requirements.txt
+
 2.  **在会话中启动机器人**:
     ```bash
-    python main.py
+    python main.py  /   Python3 main.py
     ```
 3.  **剥离会话 (回到主终端，机器人继续跑)**:
     按下组合键 `Ctrl + A`，然后按 `D`。

@@ -54,10 +54,10 @@ class SimExchange:
         if self.data is None:
             raise Exception("No data loaded")
             
-        # 获取当前价格 (收盘价作为成交价，或者如果 limit 单需判断)
-        # 简化：Market单按当前Close成交
+        # 获取当前价格 (收盘价作为成交价)
         current_candle = self.data.iloc[self.current_index]
-        current_price = current_candle['close']
+        current_price = float(current_candle['close'])
+        amount = float(amount)
         
         # 扣除手续费
         value = amount * current_price
@@ -90,5 +90,5 @@ class SimExchange:
     async def fetch_ticker(self, symbol: str) -> Dict:
         """模拟Ticker"""
         if self.data is None: return {}
-        price = self.data.iloc[self.current_index]['close']
+        price = float(self.data.iloc[self.current_index]['close'])
         return {'last': price}

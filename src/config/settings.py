@@ -264,10 +264,12 @@ class MAConfig:
     
     # 密集检测
     SQUEEZE_LOOKBACK: int = int(os.getenv('MA_SQUEEZE_LOOKBACK', '20'))    # 回看周期
-    SQUEEZE_PERCENTILE: float = float(os.getenv('MA_SQUEEZE_PERCENTILE', '20'))  # 低于历史N%视为密集
+    SQUEEZE_PERCENTILE: float = float(os.getenv('MA_SQUEEZE_PERCENTILE', '20'))  # CV阈值*1000 (25=标准差<均值2.5%时判为密集)
     
     # 突破确认
     BREAKOUT_BARS: int = 2          # 突破需持续N根K线
+    BREAKOUT_THRESHOLD: float = 0.003  # 突破幅度阈值 (0.003 = 0.3%)
+    ATR_MULTIPLIER: float = 1.5     # 策略B止损 = MA20 ± ATR * 此值
     RETEST_MAX_BARS: int = 10       # 回踩最大等待K线数
     
     # 止盈模式: 'fixed' (固定盈亏比) / 'fibonacci' (斐波那契扩展)
