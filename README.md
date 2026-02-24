@@ -246,3 +246,14 @@ npm run build     # 构建生产版本到 dist/
 ## 📄 许可证
 
 MIT License - 详见 [LICENSE](LICENSE) 文件
+
+// 回测策略运行
+
+# 用 python3 重新运行
+
+nohup python3 optimize.py --symbol ETH/USDT --start 2025-01-01 --end 2025-12-31 > optimize_eth.log 2>&1 &
+nohup python3 optimize.py --symbol BTC/USDT --start 2025-01-01 --end 2025-12-31 > optimize_btc.log 2>&1 &
+
+# 查看进度
+
+tail -f optimize_eth.log

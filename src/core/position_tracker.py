@@ -22,6 +22,7 @@ class Position:
     max_price: float = 0.0 # 持仓期间最高价 (用于移动止损)
     min_price: float = 0.0 # 持仓期间最低价
     _initial_stop_loss: float = 0.0  # 记录初始止损 (用于判断是否为移动止损触发)
+    trailing_stop: bool = True       # 收否启用移动止损
 
 class PositionTracker:
     """MA 策略持仓跟踪器 (支持多策略独立持仓)"""
@@ -32,7 +33,7 @@ class PositionTracker:
         self.max_positions = max_positions  # 最大同时持仓数
         
     def open_position(self, symbol: str, side: str, price: float, amount: float, 
-                     sl: float, tp: float, strategy_id: str, timestamp: int):
+                     sl: float, tp: float, strategy_id: str, timestamp: int, trailing_stop: bool = True):
         """记录开仓 (按策略ID独立管理)"""
         # 检查该策略是否已有持仓
         if strategy_id in self.positions:
@@ -55,7 +56,8 @@ class PositionTracker:
             entry_time=timestamp,
             max_price=price,
             min_price=price,
-            _initial_stop_loss=sl
+            _initial_stop_loss=sl,
+            trailing_stop=trailing_stop
         )
         self.positions[strategy_id] = pos
         self.logger.info(f"持仓建立 [策略{strategy_id}]: {side} {amount} @ {price} | SL: {sl} | TP: {tp}")
@@ -102,23 +104,24 @@ class PositionTracker:
             pos.pnl = (current_price - pos.entry_price) * pos.amount
             
             # === 移动止损逻辑 ===
-            risk_distance = pos.entry_price - pos._initial_stop_loss
-            if risk_distance > 0:
-                profit_in_r = (pos.max_price - pos.entry_price) / risk_distance
-                
-                # 盈利 >= 2R: 止损跟随推进
-                if profit_in_r >= 2.0:
-                    new_sl = pos.entry_price + risk_distance * (profit_in_r - 1.0)
-                    new_sl = min(new_sl, pos.max_price - risk_distance * 0.5)
-                    if new_sl > pos.stop_loss:
-                        self.logger.info(f"移动止损 [策略{pos.strategy_id}]: SL {pos.stop_loss:.2f} -> {new_sl:.2f} ({profit_in_r:.1f}R)")
-                        pos.stop_loss = new_sl
-                # 盈利 >= 1R: 保本止损
-                elif profit_in_r >= 1.0:
-                    new_sl = pos.entry_price
-                    if new_sl > pos.stop_loss:
-                        self.logger.info(f"保本止损 [策略{pos.strategy_id}]: SL {pos.stop_loss:.2f} -> {new_sl:.2f}")
-                        pos.stop_loss = new_sl
+            if pos.trailing_stop:
+                risk_distance = pos.entry_price - pos._initial_stop_loss
+                if risk_distance > 0:
+                    profit_in_r = (pos.max_price - pos.entry_price) / risk_distance
+                    
+                    # 盈利 >= 2R: 止损跟随推进
+                    if profit_in_r >= 2.0:
+                        new_sl = pos.entry_price + risk_distance * (profit_in_r - 1.0)
+                        new_sl = min(new_sl, pos.max_price - risk_distance * 0.5)
+                        if new_sl > pos.stop_loss:
+                            self.logger.info(f"移动止损 [策略{pos.strategy_id}]: SL {pos.stop_loss:.2f} -> {new_sl:.2f} ({profit_in_r:.1f}R)")
+                            pos.stop_loss = new_sl
+                    # 盈利 >= 1R: 保本止损
+                    elif profit_in_r >= 1.0:
+                        new_sl = pos.entry_price
+                        if new_sl > pos.stop_loss:
+                            self.logger.info(f"保本止损 [策略{pos.strategy_id}]: SL {pos.stop_loss:.2f} -> {new_sl:.2f}")
+                            pos.stop_loss = new_sl
             
             # 止损检查
             if current_price <= pos.stop_loss:
@@ -135,21 +138,22 @@ class PositionTracker:
             pos.pnl = (pos.entry_price - current_price) * pos.amount
             
             # === 移动止损逻辑 (空头) ===
-            risk_distance = pos._initial_stop_loss - pos.entry_price
-            if risk_distance > 0:
-                profit_in_r = (pos.entry_price - pos.min_price) / risk_distance
-                
-                if profit_in_r >= 2.0:
-                    new_sl = pos.entry_price - risk_distance * (profit_in_r - 1.0)
-                    new_sl = max(new_sl, pos.min_price + risk_distance * 0.5)
-                    if new_sl < pos.stop_loss:
-                        self.logger.info(f"移动止损 [策略{pos.strategy_id}]: SL {pos.stop_loss:.2f} -> {new_sl:.2f} ({profit_in_r:.1f}R)")
-                        pos.stop_loss = new_sl
-                elif profit_in_r >= 1.0:
-                    new_sl = pos.entry_price
-                    if new_sl < pos.stop_loss:
-                        self.logger.info(f"保本止损 [策略{pos.strategy_id}]: SL {pos.stop_loss:.2f} -> {new_sl:.2f}")
-                        pos.stop_loss = new_sl
+            if pos.trailing_stop:
+                risk_distance = pos._initial_stop_loss - pos.entry_price
+                if risk_distance > 0:
+                    profit_in_r = (pos.entry_price - pos.min_price) / risk_distance
+                    
+                    if profit_in_r >= 2.0:
+                        new_sl = pos.entry_price - risk_distance * (profit_in_r - 1.0)
+                        new_sl = max(new_sl, pos.min_price + risk_distance * 0.5)
+                        if new_sl < pos.stop_loss:
+                            self.logger.info(f"移动止损 [策略{pos.strategy_id}]: SL {pos.stop_loss:.2f} -> {new_sl:.2f} ({profit_in_r:.1f}R)")
+                            pos.stop_loss = new_sl
+                    elif profit_in_r >= 1.0:
+                        new_sl = pos.entry_price
+                        if new_sl < pos.stop_loss:
+                            self.logger.info(f"保本止损 [策略{pos.strategy_id}]: SL {pos.stop_loss:.2f} -> {new_sl:.2f}")
+                            pos.stop_loss = new_sl
             
             # 止损检查
             if current_price >= pos.stop_loss:

@@ -194,7 +194,8 @@ class MATrader:
                 sl=signal.stop_loss,
                 tp=signal.take_profit,
                 strategy_id=signal.strategy_id,
-                timestamp=int(time.time())
+                timestamp=int(time.time()),
+                trailing_stop=signal.trailing_stop
             )
             
             # 5. 发送通知

@@ -133,18 +133,58 @@ class Backtester:
             exit_reason = None
             exit_price = current_price
             
+            # 记录最高/最低价供移动止损使用
+            if 'max_price' not in trade:
+                trade['max_price'] = trade['entry_price']
+                trade['min_price'] = trade['entry_price']
+                trade['_initial_sl'] = trade['sl']
+                trade['trailing_stop'] = trade.get('trailing_stop', True)
+                
+            trade['max_price'] = max(trade['max_price'], high)
+            trade['min_price'] = min(trade['min_price'], low)
+            
             if side == 'buy':
+                # === 移动止损 ===
+                if trade.get('trailing_stop', True):
+                    risk_distance = trade['entry_price'] - trade['_initial_sl']
+                    if risk_distance > 0:
+                        profit_in_r = (trade['max_price'] - trade['entry_price']) / risk_distance
+                        if profit_in_r >= 2.0:
+                            new_sl = trade['entry_price'] + risk_distance * (profit_in_r - 1.0)
+                            new_sl = min(new_sl, trade['max_price'] - risk_distance * 0.5)
+                            if new_sl > trade['sl']:
+                                trade['sl'] = new_sl
+                        elif profit_in_r >= 1.0:
+                            new_sl = trade['entry_price']
+                            if new_sl > trade['sl']:
+                                trade['sl'] = new_sl
+
                 # 止损: Low <= SL
                 if low <= trade['sl']:
-                    exit_reason = 'STOP_LOSS'
+                    exit_reason = 'TRAILING_STOP' if trade['sl'] > trade['_initial_sl'] else 'STOP_LOSS'
                     exit_price = trade['sl'] # 假设刚好在SL成交
                 # 止盈: High >= TP
                 elif high >= trade['tp']:
                     exit_reason = 'TAKE_PROFIT'
                     exit_price = trade['tp']
             else: # sell
+                # === 移动止损 (空头) ===
+                if trade.get('trailing_stop', True):
+                    risk_distance = trade['_initial_sl'] - trade['entry_price']
+                    if risk_distance > 0:
+                        profit_in_r = (trade['entry_price'] - trade['min_price']) / risk_distance
+                        if profit_in_r >= 2.0:
+                            new_sl = trade['entry_price'] - risk_distance * (profit_in_r - 1.0)
+                            new_sl = max(new_sl, trade['min_price'] + risk_distance * 0.5)
+                            if new_sl < trade['sl']:
+                                trade['sl'] = new_sl
+                        elif profit_in_r >= 1.0:
+                            new_sl = trade['entry_price']
+                            if new_sl < trade['sl']:
+                                trade['sl'] = new_sl
+
                 if high >= trade['sl']:
-                    exit_reason = 'STOP_LOSS'
+                    exit_reason = 'TRAILING_STOP' if trade['sl'] < trade['_initial_sl'] else 'STOP_LOSS'
                     exit_price = trade['sl']
                 elif low <= trade['tp']:
                     exit_reason = 'TAKE_PROFIT'

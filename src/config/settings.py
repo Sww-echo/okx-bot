@@ -276,8 +276,15 @@ class MAConfig:
     TP_MODE: str = os.getenv('MA_TP_MODE', 'fixed')
     FIBO_LEVELS: List[float] = field(default_factory=lambda: [1.618, 2.618, 3.618])
     
+    # 高级风控与过滤开关
+    ADX_FILTER_ENABLED: bool = os.getenv('MA_ADX_FILTER_ENABLED', 'True').lower() in ('true', '1', 't')
+    VOLUME_CONFIRM_ENABLED: bool = os.getenv('MA_VOLUME_CONFIRM_ENABLED', 'True').lower() in ('true', '1', 't')
+    MACD_FILTER_ENABLED: bool = os.getenv('MA_MACD_FILTER_ENABLED', 'True').lower() in ('true', '1', 't')
+    TRAILING_STOP_ENABLED: bool = os.getenv('MA_TRAILING_STOP_ENABLED', 'True').lower() in ('true', '1', 't')
+    
     # 交易对（继承全局配置）
     SYMBOL: str = field(default_factory=lambda: os.getenv('SYMBOL', 'OKB/USDT'))
     
     # 检查间隔 (秒) - 默认每5分钟检查一次
     CHECK_INTERVAL: int = int(os.getenv('MA_CHECK_INTERVAL', '300'))
+

@@ -246,11 +246,16 @@ class TrendIndicators:
             # ATR (Average True Range)
             atr = self.calculate_atr(highs, lows, closes, period=14)
             
+            # Volume MA (20 periods)
+            volumes = [float(x[5]) for x in klines]
+            volume_ma = float(np.mean(volumes[-20:]))
+            
             last_kline = klines[-1]
             return {
                 'MA20': ma20, 'MA60': ma60, 'MA120': ma120,
                 'EMA20': ema20, 'EMA60': ema60, 'EMA120': ema120,
                 'ATR': atr,
+                'volume_ma': volume_ma,
                 'open': float(last_kline[1]),
                 'high': float(last_kline[2]),
                 'low': float(last_kline[3]),

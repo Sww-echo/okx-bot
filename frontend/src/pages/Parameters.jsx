@@ -30,12 +30,17 @@ const MA_PARAM_DEFS = [
   { key: 'TP_RATIO', label: '盈亏比 (TP Ratio)', min: 1, max: 8, step: 0.5, unit: ':1', desc: '止盈距离相对于止损距离的倍数。例如 2:1 表示每承担1元风险，期望获得2元收益。' },
   { key: 'RISK_PER_TRADE', label: '单笔风险', min: 0.005, max: 0.05, step: 0.005, unit: '%', format: v => (v * 100).toFixed(1) + '%', desc: '每笔交易最大亏损金额占账户总余额的百分比。' },
   { key: 'MAX_LEVERAGE', label: '最大杠杆', min: 1, max: 100, step: 1, unit: '×', desc: '允许使用的最大杠杆倍数。脚本会根据单笔风险自动计算实际杠杆，但不会超过此上限。' },
+  // 高级风控与过滤开关
+  { key: 'ADX_FILTER_ENABLED', label: 'ADX 趋势过滤', type: 'boolean', desc: '开启后，当 ADX < 25 (震荡市) 时，将禁止 MA20 回踩策略开单，减少来回损耗。' },
+  { key: 'VOLUME_CONFIRM_ENABLED', label: '突破量能验证', type: 'boolean', desc: '开启后，密集突破不仅需要价格突破，当根 K 线成交量还必须大于过去20均量的1.5倍。' },
+  { key: 'MACD_FILTER_ENABLED', label: 'MACD 衰竭拦截', type: 'boolean', desc: '开启后，如果动能柱显著衰减或顶背离，将禁止回踩开仓，防止高位接盘。' },
+  { key: 'TRAILING_STOP_ENABLED', label: '移动保本止损', type: 'boolean', desc: '开启后，浮盈达到 1R 时止损上移至成本价，达到 2R 时上移至 1R，保护已有利润。' },
 ];
 
 const MA_PRESETS = {
-  conservative: { SQUEEZE_PERCENTILE: 15, BREAKOUT_BARS: 3, BREAKOUT_THRESHOLD: 0.005, ATR_MULTIPLIER: 2.5, TP_RATIO: 4, RISK_PER_TRADE: 0.01, MAX_LEVERAGE: 2 },
-  balanced:     { SQUEEZE_PERCENTILE: 20, BREAKOUT_BARS: 2, BREAKOUT_THRESHOLD: 0.003, ATR_MULTIPLIER: 1.5, TP_RATIO: 3, RISK_PER_TRADE: 0.02, MAX_LEVERAGE: 3 },
-  aggressive:   { SQUEEZE_PERCENTILE: 30, BREAKOUT_BARS: 1, BREAKOUT_THRESHOLD: 0.001, ATR_MULTIPLIER: 1.0, TP_RATIO: 2, RISK_PER_TRADE: 0.03, MAX_LEVERAGE: 5 },
+  conservative: { SQUEEZE_PERCENTILE: 15, BREAKOUT_BARS: 3, BREAKOUT_THRESHOLD: 0.005, ATR_MULTIPLIER: 2.5, TP_RATIO: 4, RISK_PER_TRADE: 0.01, MAX_LEVERAGE: 2, ADX_FILTER_ENABLED: true, VOLUME_CONFIRM_ENABLED: true, MACD_FILTER_ENABLED: true, TRAILING_STOP_ENABLED: true },
+  balanced:     { SQUEEZE_PERCENTILE: 20, BREAKOUT_BARS: 2, BREAKOUT_THRESHOLD: 0.003, ATR_MULTIPLIER: 1.5, TP_RATIO: 3, RISK_PER_TRADE: 0.02, MAX_LEVERAGE: 3, ADX_FILTER_ENABLED: true, VOLUME_CONFIRM_ENABLED: true, MACD_FILTER_ENABLED: false, TRAILING_STOP_ENABLED: true },
+  aggressive:   { SQUEEZE_PERCENTILE: 30, BREAKOUT_BARS: 1, BREAKOUT_THRESHOLD: 0.001, ATR_MULTIPLIER: 1.0, TP_RATIO: 2, RISK_PER_TRADE: 0.03, MAX_LEVERAGE: 5, ADX_FILTER_ENABLED: false, VOLUME_CONFIRM_ENABLED: false, MACD_FILTER_ENABLED: false, TRAILING_STOP_ENABLED: false },
 };
 
 /* ===== 策略标签定义 ===== */
@@ -180,18 +185,39 @@ export default function Parameters() {
                 </div>
               )}
             </div>
-            <input
-              type="range"
-              className="param-slider"
-              min={def.min}
-              max={def.max}
-              step={def.step}
-              value={params[def.key] ?? def.min}
-              onChange={(e) => handleChange(def.key, e.target.value)}
-            />
-            <div className="param-value">
-              {def.format ? def.format(params[def.key] ?? 0) : (params[def.key] ?? 0)}{!def.format ? ` ${def.unit}` : ''}
-            </div>
+            {def.type === 'boolean' ? (
+              <div 
+                className="param-toggle" 
+                style={{
+                  display: 'flex', alignItems: 'center', cursor: 'pointer',
+                  width: '40px', height: '22px', borderRadius: '11px',
+                  background: params[def.key] ? 'var(--color-primary)' : 'rgba(255,255,255,0.1)',
+                  position: 'relative', transition: 'all 0.3s ease'
+                }}
+                onClick={() => handleChange(def.key, !params[def.key])}
+              >
+                <div style={{
+                  width: '18px', height: '18px', borderRadius: '50%', background: '#fff',
+                  position: 'absolute', top: '2px', left: params[def.key] ? '20px' : '2px',
+                  transition: 'all 0.3s ease'
+                }} />
+              </div>
+            ) : (
+              <>
+                <input
+                  type="range"
+                  className="param-slider"
+                  min={def.min}
+                  max={def.max}
+                  step={def.step}
+                  value={params[def.key] ?? def.min}
+                  onChange={(e) => handleChange(def.key, e.target.value)}
+                />
+                <div className="param-value">
+                  {def.format ? def.format(params[def.key] ?? 0) : (params[def.key] ?? 0)}{!def.format ? ` ${def.unit}` : ''}
+                </div>
+              </>
+            )}
           </div>
         ))}
       </div>
