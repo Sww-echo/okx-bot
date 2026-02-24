@@ -1,5 +1,5 @@
 """
-MA Strategy Parameter Optimizer
+MA Strategy Parameter Optimizer (v2 - 中间保存 + 精简参数)
 
 Usage (local):
     python optimize.py --symbol ETH/USDT --start 2025-01-01 --end 2025-12-31
@@ -25,16 +25,21 @@ from src.config.settings import MAConfig
 from src.backtest.backtester import Backtester
 
 # ====================== Parameter Grid ======================
+# v2: 精简版 576 种组合 (原 6912 种)
+# 保留核心参数的完整搜索, 固定/缩减影响小或极端的参数
 PARAM_GRID = {
-    'SQUEEZE_PERCENTILE': [15, 20, 25, 30],
-    'SQUEEZE_LOOKBACK':   [15, 20, 30],
-    'BREAKOUT_BARS':      [1, 2, 3],
-    'BREAKOUT_THRESHOLD': [0.001, 0.002, 0.003, 0.005],
-    'ATR_MULTIPLIER':     [1.0, 1.5, 2.0, 2.5],
-    'TP_RATIO':           [2.0, 3.0, 4.0, 5.0],
-    'RISK_PER_TRADE':     [0.01, 0.02, 0.03],
+    'SQUEEZE_PERCENTILE': [15, 20, 25, 30],        # 核心: 密集检测敏感度
+    'SQUEEZE_LOOKBACK':   [20],                     # 固定: 标准回看周期, 影响极小
+    'BREAKOUT_BARS':      [1, 2, 3],                # 核心: 突破确认严格度
+    'BREAKOUT_THRESHOLD': [0.002, 0.003, 0.005],    # 去掉 0.001 (太敏感, 假信号多)
+    'ATR_MULTIPLIER':     [1.5, 2.0],               # 合理区间: 1.0太紧被扫, 2.5太宽亏大
+    'TP_RATIO':           [2.0, 3.0, 4.0, 5.0],     # 核心: 盈亏比, 全部保留
+    'RISK_PER_TRADE':     [0.01, 0.02],              # 去掉 0.03 (实盘过于激进)
 }
-# Total: 4*3*3*4*4*4*3 = 6912 combinations
+# Total: 4×1×3×3×2×4×2 = 576 combinations
+
+# 中间结果保存间隔
+SAVE_EVERY = 50
 
 
 def calculate_score(total_return, max_drawdown, win_rate, total_trades):
@@ -57,6 +62,17 @@ async def run_single(config, data):
     }
 
 
+def save(results, symbol, tag=''):
+    """保存结果到 CSV"""
+    suffix = f"_{tag}" if tag else ''
+    fn = f"data/optimize_{symbol.replace('/','-')}{suffix}.csv"
+    os.makedirs('data', exist_ok=True)
+    df = pd.DataFrame(results)
+    df.sort_values('score', ascending=False, inplace=True)
+    df.to_csv(fn, index=False)
+    return fn
+
+
 async def optimize(symbol, data):
     total = 1
     for v in PARAM_GRID.values():
@@ -67,11 +83,14 @@ async def optimize(symbol, data):
 
     print(f"\n{'='*60}")
     print(f"  {symbol} | {total} combos | {len(data)} bars")
-    print(f"  Start: {datetime.now().strftime('%H:%M:%S')}")
+    print(f"  Start: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"  中间结果每 {SAVE_EVERY} 次自动保存")
     print(f"{'='*60}\n", flush=True)
 
     results = []
     t0 = time.time()
+    best_score = -999
+    best_params = None
 
     for i, combo in enumerate(combos):
         params = dict(zip(keys, combo))
@@ -86,18 +105,32 @@ async def optimize(symbol, data):
             continue
 
         score = calculate_score(m['total_return'], m['max_drawdown'], m['win_rate'], m['total_trades'])
-        results.append({**params, **m, 'score': score})
+        row = {**params, **m, 'score': score}
+        results.append(row)
+
+        # 追踪最佳
+        if score > best_score:
+            best_score = score
+            best_params = row
 
         done = i + 1
-        if done % 100 == 0 or done == total:
+
+        # 中间保存
+        if done % SAVE_EVERY == 0:
+            fn = save(results, symbol, 'partial')
+            print(f"  💾 中间保存: {fn} ({len(results)} results)", flush=True)
+
+        # 进度显示
+        if done % 50 == 0 or done == total:
             el = time.time() - t0
             spd = done / el
             eta = (total - done) / spd if spd > 0 else 0
             print(f"  [{done}/{total}] {done/total*100:.1f}% | "
-                  f"{spd:.1f}/s | ETA {eta/60:.0f}min", flush=True)
+                  f"{spd:.1f}/s | ETA {eta/60:.0f}min | "
+                  f"Best: {best_score:.1f}", flush=True)
 
     el = time.time() - t0
-    print(f"\n  Done in {el/60:.1f} min", flush=True)
+    print(f"\n  ✅ Done in {el/60:.1f} min ({el:.0f}s)", flush=True)
 
     results.sort(key=lambda x: x['score'], reverse=True)
     return results
@@ -113,13 +146,6 @@ def print_top(results, n=15):
         print(f"    Ret={r['total_return']:+.2f}%  WR={r['win_rate']:.1f}%  "
               f"DD={r['max_drawdown']:.2f}%  N={r['total_trades']}  PF={r['profit_factor']:.2f}")
         print(f"    {' '.join(f'{k}={r[k]}' for k in keys)}")
-
-
-def save(results, symbol):
-    fn = f"data/optimize_{symbol.replace('/','-')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-    os.makedirs('data', exist_ok=True)
-    pd.DataFrame(results).to_csv(fn, index=False)
-    print(f"\n  Saved: {fn}", flush=True)
 
 
 async def main():
@@ -147,18 +173,21 @@ async def main():
         print("No results!")
         return
 
+    # 最终保存
+    fn = save(results, args.symbol, f"final_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+    print(f"\n  📊 最终结果: {fn}", flush=True)
+
     print_top(results)
-    save(results, args.symbol)
 
     best = results[0]
     keys = list(PARAM_GRID.keys())
     print(f"\n{'='*60}")
-    print(f"  BEST FOR {args.symbol}")
+    print(f"  🏆 BEST FOR {args.symbol}")
     print(f"{'='*60}")
     for k in keys:
         print(f"    {k} = {best[k]}")
     print(f"    => Ret={best['total_return']:+.2f}% WR={best['win_rate']:.1f}% DD={best['max_drawdown']:.2f}%")
-    print(f"\n  Finished: {datetime.now().strftime('%H:%M:%S')}")
+    print(f"\n  Finished: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 
 if __name__ == '__main__':

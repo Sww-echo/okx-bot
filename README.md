@@ -97,17 +97,38 @@ WEB_USER=admin
 WEB_PASSWORD=your_password
 ```
 
-### 3. 启动系统
+### 1. 极速部署 (推荐)
 
-有两种使用方式：
-
-#### 方式一：仅启动 Web 服务（推荐）
+我们为您准备了自动化脚本，支持环境初始化与后台服务配置。
 
 ```bash
+# 1. 运行初始化脚本 (自动安装依赖、构建前端、生成配置)
+bash deploy.sh
+
+# 2. 修改 .env 填入 API Key 和 Web 密码
+nano .env
+
+# 3. 启动后台服务 (Systemd 自动管理，防掉线)
+bash setup_service.sh
+# 按照输出提示执行 3 行 sudo 命令即可
+```
+
+### 2. 手动启动
+
+如果您不想使用自动化脚本：
+
+```bash
+# 安装 Python 依赖
+pip install -r requirements.txt
+
+# 构建前端 (本地或服务器)
+cd frontend && npm install && npm run build && cd ..
+
+# 启动 Web 服务 (会自动托管 frontend/dist 目录)
 python main.py
 ```
 
-启动后访问 http://localhost:58181，在前端 Dashboard 选择策略并启动。
+访问地址：`http://localhost:58181` (云服务器请替换为公网 IP)。
 
 #### 方式二：终端直接启动策略
 
