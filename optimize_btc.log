@@ -1,0 +1,113 @@
+nohup: ignoring input
+
+============================================================
+  BTC/USDT | 576 combos | 8760 bars
+  Start: 2026-02-24 09:01:10
+  中间结果每 50 次自动保存
+============================================================
+
+  💾 中间保存: data/optimize_BTC-USDT_partial.csv (50 results)
+  [50/576] 8.7% | 0.0/s | ETA 2228min | Best: 42.4
+  💾 中间保存: data/optimize_BTC-USDT_partial.csv (100 results)
+  [100/576] 17.4% | 0.0/s | ETA 2066min | Best: 42.4
+  💾 中间保存: data/optimize_BTC-USDT_partial.csv (150 results)
+  [150/576] 26.0% | 0.0/s | ETA 1912min | Best: 43.4
+  💾 中间保存: data/optimize_BTC-USDT_partial.csv (200 results)
+  [200/576] 34.7% | 0.0/s | ETA 1723min | Best: 43.4
+  💾 中间保存: data/optimize_BTC-USDT_partial.csv (250 results)
+  [250/576] 43.4% | 0.0/s | ETA 1514min | Best: 45.9
+  💾 中间保存: data/optimize_BTC-USDT_partial.csv (300 results)
+  [300/576] 52.1% | 0.0/s | ETA 1302min | Best: 46.1
+  💾 中间保存: data/optimize_BTC-USDT_partial.csv (350 results)
+  [350/576] 60.8% | 0.0/s | ETA 1068min | Best: 46.1
+  💾 中间保存: data/optimize_BTC-USDT_partial.csv (400 results)
+  [400/576] 69.4% | 0.0/s | ETA 836min | Best: 46.1
+  💾 中间保存: data/optimize_BTC-USDT_partial.csv (450 results)
+  [450/576] 78.1% | 0.0/s | ETA 602min | Best: 46.1
+  💾 中间保存: data/optimize_BTC-USDT_partial.csv (500 results)
+  [500/576] 86.8% | 0.0/s | ETA 358min | Best: 46.1
+  💾 中间保存: data/optimize_BTC-USDT_partial.csv (550 results)
+  [550/576] 95.5% | 0.0/s | ETA 118min | Best: 46.1
+  [576/576] 100.0% | 0.0/s | ETA 0min | Best: 46.1
+
+  ✅ Done in 2558.8 min (153527s)
+
+  📊 最终结果: data/optimize_BTC-USDT_final_20260226_033958.csv
+
+============================================================
+  TOP 15
+============================================================
+
+  #1 Score=46.09
+    Ret=+10.08%  WR=44.4%  DD=4.25%  N=18  PF=1.51
+    SQUEEZE_PERCENTILE=20 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=3 BREAKOUT_THRESHOLD=0.003 ATR_MULTIPLIER=2.0 TP_RATIO=2.0 RISK_PER_TRADE=0.02
+
+  #2 Score=46.09
+    Ret=+10.08%  WR=44.4%  DD=4.25%  N=18  PF=1.51
+    SQUEEZE_PERCENTILE=20 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=3 BREAKOUT_THRESHOLD=0.005 ATR_MULTIPLIER=2.0 TP_RATIO=2.0 RISK_PER_TRADE=0.02
+
+  #3 Score=45.87
+    Ret=+9.75%  WR=44.4%  DD=4.53%  N=18  PF=1.49
+    SQUEEZE_PERCENTILE=20 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=3 BREAKOUT_THRESHOLD=0.002 ATR_MULTIPLIER=2.0 TP_RATIO=2.0 RISK_PER_TRADE=0.02
+
+  #4 Score=45.13
+    Ret=+5.99%  WR=44.4%  DD=2.00%  N=18  PF=1.60
+    SQUEEZE_PERCENTILE=20 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=3 BREAKOUT_THRESHOLD=0.002 ATR_MULTIPLIER=2.0 TP_RATIO=2.0 RISK_PER_TRADE=0.01
+
+  #5 Score=45.13
+    Ret=+5.99%  WR=44.4%  DD=2.00%  N=18  PF=1.60
+    SQUEEZE_PERCENTILE=20 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=3 BREAKOUT_THRESHOLD=0.003 ATR_MULTIPLIER=2.0 TP_RATIO=2.0 RISK_PER_TRADE=0.01
+
+  #6 Score=45.13
+    Ret=+5.99%  WR=44.4%  DD=2.00%  N=18  PF=1.60
+    SQUEEZE_PERCENTILE=20 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=3 BREAKOUT_THRESHOLD=0.005 ATR_MULTIPLIER=2.0 TP_RATIO=2.0 RISK_PER_TRADE=0.01
+
+  #7 Score=43.37
+    Ret=+10.65%  WR=36.4%  DD=6.00%  N=11  PF=1.83
+    SQUEEZE_PERCENTILE=20 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=1 BREAKOUT_THRESHOLD=0.002 ATR_MULTIPLIER=1.5 TP_RATIO=3.0 RISK_PER_TRADE=0.02
+
+  #8 Score=43.37
+    Ret=+10.65%  WR=36.4%  DD=6.00%  N=11  PF=1.83
+    SQUEEZE_PERCENTILE=20 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=1 BREAKOUT_THRESHOLD=0.003 ATR_MULTIPLIER=1.5 TP_RATIO=3.0 RISK_PER_TRADE=0.02
+
+  #9 Score=43.37
+    Ret=+10.65%  WR=36.4%  DD=6.00%  N=11  PF=1.83
+    SQUEEZE_PERCENTILE=20 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=1 BREAKOUT_THRESHOLD=0.005 ATR_MULTIPLIER=1.5 TP_RATIO=3.0 RISK_PER_TRADE=0.02
+
+  #10 Score=42.42
+    Ret=+6.67%  WR=37.5%  DD=5.00%  N=16  PF=1.67
+    SQUEEZE_PERCENTILE=15 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=1 BREAKOUT_THRESHOLD=0.002 ATR_MULTIPLIER=2.0 TP_RATIO=3.0 RISK_PER_TRADE=0.01
+
+  #11 Score=42.42
+    Ret=+6.67%  WR=37.5%  DD=5.00%  N=16  PF=1.67
+    SQUEEZE_PERCENTILE=15 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=1 BREAKOUT_THRESHOLD=0.003 ATR_MULTIPLIER=2.0 TP_RATIO=3.0 RISK_PER_TRADE=0.01
+
+  #12 Score=42.42
+    Ret=+6.67%  WR=37.5%  DD=5.00%  N=16  PF=1.67
+    SQUEEZE_PERCENTILE=15 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=1 BREAKOUT_THRESHOLD=0.005 ATR_MULTIPLIER=2.0 TP_RATIO=3.0 RISK_PER_TRADE=0.01
+
+  #13 Score=42.01
+    Ret=+4.99%  WR=36.4%  DD=3.00%  N=11  PF=1.71
+    SQUEEZE_PERCENTILE=20 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=1 BREAKOUT_THRESHOLD=0.002 ATR_MULTIPLIER=1.5 TP_RATIO=3.0 RISK_PER_TRADE=0.01
+
+  #14 Score=42.01
+    Ret=+4.99%  WR=36.4%  DD=3.00%  N=11  PF=1.71
+    SQUEEZE_PERCENTILE=20 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=1 BREAKOUT_THRESHOLD=0.003 ATR_MULTIPLIER=1.5 TP_RATIO=3.0 RISK_PER_TRADE=0.01
+
+  #15 Score=42.01
+    Ret=+4.99%  WR=36.4%  DD=3.00%  N=11  PF=1.71
+    SQUEEZE_PERCENTILE=20 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=1 BREAKOUT_THRESHOLD=0.005 ATR_MULTIPLIER=1.5 TP_RATIO=3.0 RISK_PER_TRADE=0.01
+
+============================================================
+  🏆 BEST FOR BTC/USDT
+============================================================
+    SQUEEZE_PERCENTILE = 20
+    SQUEEZE_LOOKBACK = 20
+    BREAKOUT_BARS = 3
+    BREAKOUT_THRESHOLD = 0.003
+    ATR_MULTIPLIER = 2.0
+    TP_RATIO = 2.0
+    RISK_PER_TRADE = 0.02
+    => Ret=+10.08% WR=44.4% DD=4.25%
+
+  Finished: 2026-02-26 03:39:59
