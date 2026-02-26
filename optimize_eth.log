@@ -1,0 +1,113 @@
+nohup: ignoring input
+
+============================================================
+  ETH/USDT | 576 combos | 7300 bars
+  Start: 2026-02-24 09:01:10
+  中间结果每 50 次自动保存
+============================================================
+
+  💾 中间保存: data/optimize_ETH-USDT_partial.csv (50 results)
+  [50/576] 8.7% | 0.0/s | ETA 1834min | Best: 45.6
+  💾 中间保存: data/optimize_ETH-USDT_partial.csv (100 results)
+  [100/576] 17.4% | 0.0/s | ETA 1709min | Best: 50.4
+  💾 中间保存: data/optimize_ETH-USDT_partial.csv (150 results)
+  [150/576] 26.0% | 0.0/s | ETA 1550min | Best: 50.6
+  💾 中间保存: data/optimize_ETH-USDT_partial.csv (200 results)
+  [200/576] 34.7% | 0.0/s | ETA 1400min | Best: 50.6
+  💾 中间保存: data/optimize_ETH-USDT_partial.csv (250 results)
+  [250/576] 43.4% | 0.0/s | ETA 1236min | Best: 50.6
+  💾 中间保存: data/optimize_ETH-USDT_partial.csv (300 results)
+  [300/576] 52.1% | 0.0/s | ETA 1059min | Best: 50.6
+  💾 中间保存: data/optimize_ETH-USDT_partial.csv (350 results)
+  [350/576] 60.8% | 0.0/s | ETA 881min | Best: 50.6
+  💾 中间保存: data/optimize_ETH-USDT_partial.csv (400 results)
+  [400/576] 69.4% | 0.0/s | ETA 689min | Best: 50.6
+  💾 中间保存: data/optimize_ETH-USDT_partial.csv (450 results)
+  [450/576] 78.1% | 0.0/s | ETA 493min | Best: 52.0
+  💾 中间保存: data/optimize_ETH-USDT_partial.csv (500 results)
+  [500/576] 86.8% | 0.0/s | ETA 299min | Best: 53.0
+  💾 中间保存: data/optimize_ETH-USDT_partial.csv (550 results)
+  [550/576] 95.5% | 0.0/s | ETA 103min | Best: 53.0
+  [576/576] 100.0% | 0.0/s | ETA 0min | Best: 53.0
+
+  ✅ Done in 2288.7 min (137324s)
+
+  📊 最终结果: data/optimize_ETH-USDT_final_20260225_230955.csv
+
+============================================================
+  TOP 15
+============================================================
+
+  #1 Score=53.02
+    Ret=+25.95%  WR=46.7%  DD=4.52%  N=15  PF=2.63
+    SQUEEZE_PERCENTILE=30 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=2 BREAKOUT_THRESHOLD=0.002 ATR_MULTIPLIER=2.0 TP_RATIO=3.0 RISK_PER_TRADE=0.02
+
+  #2 Score=53.02
+    Ret=+25.95%  WR=46.7%  DD=4.52%  N=15  PF=2.63
+    SQUEEZE_PERCENTILE=30 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=2 BREAKOUT_THRESHOLD=0.003 ATR_MULTIPLIER=2.0 TP_RATIO=3.0 RISK_PER_TRADE=0.02
+
+  #3 Score=52.03
+    Ret=+19.97%  WR=50.0%  DD=3.21%  N=10  PF=3.00
+    SQUEEZE_PERCENTILE=30 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=1 BREAKOUT_THRESHOLD=0.002 ATR_MULTIPLIER=1.5 TP_RATIO=3.0 RISK_PER_TRADE=0.02
+
+  #4 Score=52.03
+    Ret=+19.97%  WR=50.0%  DD=3.21%  N=10  PF=3.00
+    SQUEEZE_PERCENTILE=30 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=1 BREAKOUT_THRESHOLD=0.003 ATR_MULTIPLIER=1.5 TP_RATIO=3.0 RISK_PER_TRADE=0.02
+
+  #5 Score=50.90
+    Ret=+23.96%  WR=43.8%  DD=6.03%  N=16  PF=2.34
+    SQUEEZE_PERCENTILE=30 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=2 BREAKOUT_THRESHOLD=0.005 ATR_MULTIPLIER=2.0 TP_RATIO=3.0 RISK_PER_TRADE=0.02
+
+  #6 Score=50.62
+    Ret=+35.98%  WR=30.0%  DD=9.23%  N=40  PF=1.67
+    SQUEEZE_PERCENTILE=15 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=3 BREAKOUT_THRESHOLD=0.002 ATR_MULTIPLIER=2.0 TP_RATIO=4.0 RISK_PER_TRADE=0.02
+
+  #7 Score=50.62
+    Ret=+35.98%  WR=30.0%  DD=9.23%  N=40  PF=1.67
+    SQUEEZE_PERCENTILE=15 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=3 BREAKOUT_THRESHOLD=0.005 ATR_MULTIPLIER=2.0 TP_RATIO=4.0 RISK_PER_TRADE=0.02
+
+  #8 Score=50.40
+    Ret=+38.79%  WR=29.5%  DD=13.28%  N=44  PF=1.65
+    SQUEEZE_PERCENTILE=15 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=2 BREAKOUT_THRESHOLD=0.002 ATR_MULTIPLIER=2.0 TP_RATIO=4.0 RISK_PER_TRADE=0.02
+
+  #9 Score=50.40
+    Ret=+38.79%  WR=29.5%  DD=13.28%  N=44  PF=1.65
+    SQUEEZE_PERCENTILE=15 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=2 BREAKOUT_THRESHOLD=0.005 ATR_MULTIPLIER=2.0 TP_RATIO=4.0 RISK_PER_TRADE=0.02
+
+  #10 Score=50.26
+    Ret=+35.11%  WR=30.0%  DD=9.29%  N=40  PF=1.65
+    SQUEEZE_PERCENTILE=15 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=3 BREAKOUT_THRESHOLD=0.003 ATR_MULTIPLIER=2.0 TP_RATIO=4.0 RISK_PER_TRADE=0.02
+
+  #11 Score=50.03
+    Ret=+37.92%  WR=29.5%  DD=13.35%  N=44  PF=1.64
+    SQUEEZE_PERCENTILE=15 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=2 BREAKOUT_THRESHOLD=0.003 ATR_MULTIPLIER=2.0 TP_RATIO=4.0 RISK_PER_TRADE=0.02
+
+  #12 Score=49.80
+    Ret=+13.51%  WR=50.0%  DD=2.00%  N=14  PF=1.97
+    SQUEEZE_PERCENTILE=30 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=1 BREAKOUT_THRESHOLD=0.005 ATR_MULTIPLIER=1.5 TP_RATIO=2.0 RISK_PER_TRADE=0.02
+
+  #13 Score=49.53
+    Ret=+18.21%  WR=45.5%  DD=4.63%  N=11  PF=2.55
+    SQUEEZE_PERCENTILE=30 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=1 BREAKOUT_THRESHOLD=0.005 ATR_MULTIPLIER=1.5 TP_RATIO=3.0 RISK_PER_TRADE=0.02
+
+  #14 Score=49.32
+    Ret=+23.96%  WR=38.5%  DD=6.00%  N=13  PF=2.50
+    SQUEEZE_PERCENTILE=30 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=2 BREAKOUT_THRESHOLD=0.002 ATR_MULTIPLIER=2.0 TP_RATIO=4.0 RISK_PER_TRADE=0.02
+
+  #15 Score=49.32
+    Ret=+23.96%  WR=38.5%  DD=6.00%  N=13  PF=2.50
+    SQUEEZE_PERCENTILE=30 SQUEEZE_LOOKBACK=20 BREAKOUT_BARS=2 BREAKOUT_THRESHOLD=0.003 ATR_MULTIPLIER=2.0 TP_RATIO=4.0 RISK_PER_TRADE=0.02
+
+============================================================
+  🏆 BEST FOR ETH/USDT
+============================================================
+    SQUEEZE_PERCENTILE = 30
+    SQUEEZE_LOOKBACK = 20
+    BREAKOUT_BARS = 2
+    BREAKOUT_THRESHOLD = 0.002
+    ATR_MULTIPLIER = 2.0
+    TP_RATIO = 3.0
+    RISK_PER_TRADE = 0.02
+    => Ret=+25.95% WR=46.7% DD=4.52%
+
+  Finished: 2026-02-25 23:10:01
