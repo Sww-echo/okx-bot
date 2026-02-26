@@ -39,9 +39,9 @@ env/
 
 # 日志文件
 logs/
-*.log
-*.log.*
-trading_system.log*
+# *.log
+# *.log.*
+# trading_system.log*
 
 # 数据文件 (可选，如需保留历史记录请注释此行)
 # data/
