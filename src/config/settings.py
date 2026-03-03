@@ -267,9 +267,9 @@ class MAConfig:
     SQUEEZE_PERCENTILE: float = float(os.getenv('MA_SQUEEZE_PERCENTILE', '20'))  # CV阈值*1000 (25=标准差<均值2.5%时判为密集)
     
     # 突破确认
-    BREAKOUT_BARS: int = 2          # 突破需持续N根K线
-    BREAKOUT_THRESHOLD: float = 0.003  # 突破幅度阈值 (0.003 = 0.3%)
-    ATR_MULTIPLIER: float = 1.5     # 策略B止损 = MA20 ± ATR * 此值
+    BREAKOUT_BARS: int = int(os.getenv('MA_BREAKOUT_BARS', '2'))          # 突破需持续N根K线
+    BREAKOUT_THRESHOLD: float = float(os.getenv('MA_BREAKOUT_THRESHOLD', '0.003'))  # 突破幅度阈值 (0.003 = 0.3%)
+    ATR_MULTIPLIER: float = float(os.getenv('MA_ATR_MULTIPLIER', '1.5'))     # 策略B止损 = MA20 ± ATR * 此值
     RETEST_MAX_BARS: int = 10       # 回踩最大等待K线数
     
     # 止盈模式: 'fixed' (固定盈亏比) / 'fibonacci' (斐波那契扩展)
@@ -278,13 +278,16 @@ class MAConfig:
     
     # 高级风控与过滤开关
     ADX_FILTER_ENABLED: bool = os.getenv('MA_ADX_FILTER_ENABLED', 'True').lower() in ('true', '1', 't')
+    ADX_MIN: float = float(os.getenv('MA_ADX_MIN', '20'))  # ADX 最小阈值（原策略固定25）
     VOLUME_CONFIRM_ENABLED: bool = os.getenv('MA_VOLUME_CONFIRM_ENABLED', 'True').lower() in ('true', '1', 't')
+    VOLUME_MULTIPLIER: float = float(os.getenv('MA_VOLUME_MULTIPLIER', '1.2'))  # 放量确认倍数（原策略固定1.5）
     MACD_FILTER_ENABLED: bool = os.getenv('MA_MACD_FILTER_ENABLED', 'True').lower() in ('true', '1', 't')
     TRAILING_STOP_ENABLED: bool = os.getenv('MA_TRAILING_STOP_ENABLED', 'True').lower() in ('true', '1', 't')
+    MA20_TOUCH_TOLERANCE: float = float(os.getenv('MA_MA20_TOUCH_TOLERANCE', '0.001'))
+    # 回踩/受阻触发容差（例如 0.001=0.1%，允许价格“接近”MA20而非必须精确触碰）
     
     # 交易对（继承全局配置）
     SYMBOL: str = field(default_factory=lambda: os.getenv('SYMBOL', 'OKB/USDT'))
     
     # 检查间隔 (秒) - 默认每5分钟检查一次
     CHECK_INTERVAL: int = int(os.getenv('MA_CHECK_INTERVAL', '300'))
-
