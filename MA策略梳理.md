@@ -58,7 +58,7 @@
 
 过滤与确认：
 
-- 若开启量能确认，需 `current_volume >= 1.5 * volume_ma`
+- 若开启量能确认，需 `current_volume >= MA_VOLUME_MULTIPLIER * volume_ma`（默认 1.2）
 - 同方向连续突破计数 `breakout_bars_count`
 - 达到 `BREAKOUT_BARS` 后发出开仓信号
 
@@ -71,15 +71,15 @@
 
 先过过滤器：
 
-- ADX 过滤开启时：`ADX >= 25`
+- ADX 过滤开启时：`ADX >= ADX_MIN`（默认 20）
 - MACD 过滤开启时：
   - 多头回踩要求 `macd_hist >= 0`
   - 空头回弹要求 `macd_hist <= 0`
 
 具体触发：
 
-- **多头回踩买入**：`low <= MA20` 且 `close >= MA20`
-- **空头受阻卖出**：`high >= MA20` 且 `close <= MA20`
+- **多头回踩买入**：`low <= MA20 + touch_tol` 且 `close >= MA20 - touch_tol`
+- **空头受阻卖出**：`high >= MA20 - touch_tol` 且 `close <= MA20 + touch_tol`
 
 止损设置：
 
@@ -164,3 +164,66 @@
 - **激进**：`ADX_MIN=18, VOLUME_MULTIPLIER=1.0, TOUCH_TOL=0.002, BREAKOUT_BARS=1`
 
 > 建议每次只改 1~2 个参数，按月度样本回测，重点看：交易次数、胜率、盈亏比、最大回撤是否同时可接受。
+
+
+## 9. 指标与参数含义（逐项解释）
+
+### 9.1 均线与趋势识别
+
+- `MA20/60/120`：简单移动平均线，分别代表短/中/长周期价格均值。
+- `EMA20/60/120`：指数移动平均线，对新价格更敏感。
+- `PERIODS`：均线周期列表（默认 `[20, 60, 120]`），决定“趋势判定”的时间尺度。周期越大，信号越慢但更稳。
+- `TIMEFRAME`：K 线级别（如 `1H/4H/1D`）。级别越大，噪音越小但开单更少。
+
+### 9.2 密集（Squeeze）相关
+
+- `SQUEEZE_PERCENTILE`：密集阈值（代码里会 `/1000` 变成变异系数阈值）。
+  - 例如 `20 -> 0.02`，表示 6 线的 `std/mean < 2%` 判定为密集。
+  - **调大**（如 30）：更容易判定密集，A 策略候选机会增多。
+  - **调小**（如 10）：只认非常收敛的密集，机会变少但质量偏高。
+- `SQUEEZE_LOOKBACK`：密集检测参考窗口长度（实现里作为配置保留，主要用于策略语义一致性）。
+
+### 9.3 突破（策略 A）相关
+
+- `BREAKOUT_THRESHOLD`：突破幅度阈值。
+  - 多头要求：`close > squeeze_high * (1 + threshold)`。
+  - 空头要求：`close < squeeze_low * (1 - threshold)`。
+  - **调小**可增加开单频率，**调大**可减少假突破。
+- `BREAKOUT_BARS`：连续突破确认根数。
+  - `1` 更激进，`2` 更稳健。
+- `VOLUME_CONFIRM_ENABLED`：是否启用放量确认。
+- `VOLUME_MULTIPLIER`：放量倍数阈值（默认 1.2）。
+  - 条件：`volume >= volume_ma * multiplier`。
+  - 倍数越高越严格，交易次数越少。
+
+### 9.4 回踩（策略 B）相关
+
+- `MA20_TOUCH_TOLERANCE`：MA20 触碰容差。
+  - 例如 `0.001` 表示允许 ±0.1% 的“近似触碰”。
+  - 作用：减少“差一点触线”导致的漏单。
+- `ATR_MULTIPLIER`：ATR 止损倍数。
+  - 多单 `SL = MA20 - ATR * multiplier`；空单反之。
+  - 倍数越大，止损更宽，持仓容错更高但单笔风险距离变大。
+
+### 9.5 趋势强度 / 动能过滤
+
+- `ADX_FILTER_ENABLED`：是否启用 ADX 过滤。
+- `ADX_MIN`：最低趋势强度阈值（默认 20）。
+  - 越高越强调“强趋势”，开单越少。
+- `MACD_FILTER_ENABLED`：是否启用 MACD 动能方向过滤。
+  - 多头回踩要求 `macd_hist >= 0`；空头回弹要求 `macd_hist <= 0`。
+  - 开启后能减少逆势单，但会牺牲部分早期信号。
+
+### 9.6 资金与执行参数（会间接影响有效开单）
+
+- `RISK_PER_TRADE`：单笔风险占权益比例（用于仓位大小计算）。
+- `TP_RATIO`：止盈 R 倍数（`TP = Entry ± RiskDistance * TP_RATIO`）。
+- `MAX_LEVERAGE`：实际杠杆上限；过高会被拒单。
+- `CHECK_INTERVAL`：轮询间隔。若与 K 线收盘错位，可能错过最理想触发点。
+- `TRAILING_STOP_ENABLED`：是否启用移动止损（影响持仓退出，不直接增加入场次数）。
+
+### 9.7 参数调节方向速查（提高开单频率）
+
+- 更高频：`ADX_MIN ↓`、`VOLUME_MULTIPLIER ↓`、`MA20_TOUCH_TOLERANCE ↑`、`BREAKOUT_BARS ↓`、`BREAKOUT_THRESHOLD ↓`。
+- 更稳健：反向调节。
+
