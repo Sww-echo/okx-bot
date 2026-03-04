@@ -2,6 +2,7 @@
 
 from ..config.constants import STRATEGY_MODE
 from ..config.settings import MAConfig
+from .errors import InvalidModeError
 
 
 class ConfigService:
@@ -50,6 +51,9 @@ class ConfigService:
 
     async def update_config(self, data):
         mode = data.get('mode', STRATEGY_MODE)
+        if mode not in ('grid', 'ma'):
+            raise InvalidModeError(f"未知策略模式: {mode}，仅支持 'grid' 或 'ma'")
+
         new_params = data.get('params', data.get('ma_config', {}))
 
         if mode == 'ma':

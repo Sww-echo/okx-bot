@@ -1,6 +1,7 @@
 """Strategy lifecycle use cases."""
 
 from ..config.constants import STRATEGY_MODE
+from .errors import InvalidActionError, InvalidModeError
 
 
 class StrategyService:
@@ -10,7 +11,11 @@ class StrategyService:
         self.manager = manager
 
     async def start(self, mode='grid'):
-        await self.manager.start_strategy(mode)
+        try:
+            await self.manager.start_strategy(mode)
+        except ValueError as exc:
+            raise InvalidModeError(str(exc)) from exc
+
         return {
             'status': 'ok',
             'message': f'{mode} 策略已启动',
@@ -41,6 +46,6 @@ class StrategyService:
         elif action == 'stop':
             await self.manager.stop_strategy()
         else:
-            raise ValueError('Unknown action')
+            raise InvalidActionError(f'Unknown action: {action}')
 
         return {'status': 'ok', 'action': action}

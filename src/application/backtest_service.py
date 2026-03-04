@@ -5,6 +5,7 @@ import pandas as pd
 
 from ..backtest.backtester import Backtester
 from ..config.settings import MAConfig
+from .errors import ResourceNotFoundError
 
 
 class BacktestService:
@@ -30,7 +31,9 @@ class BacktestService:
 
         path = f"data/{symbol.replace('/', '-')}_1H_{start}_{end}.csv"
         if not os.path.exists(path):
-            raise FileNotFoundError(f'Data file not found: {path}. Run backtest script first to download data.')
+            raise ResourceNotFoundError(
+                f'Data file not found: {path}. Run backtest script first to download data.'
+            )
 
         df = pd.read_csv(path)
         for col in ['open', 'high', 'low', 'close', 'volume']:
