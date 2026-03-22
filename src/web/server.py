@@ -272,7 +272,7 @@ class WebServer:
                 if hasattr(trader, 'balance_service'):
                     avail = await trader.balance_service.get_available_balance('USDT')
                     status['balance'] = avail
-            except:
+            except Exception:
                 pass
 
             # 获取持仓和盈亏

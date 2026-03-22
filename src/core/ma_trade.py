@@ -199,7 +199,7 @@ class MATrader:
             )
             
             # 5. 发送通知
-            self.notifier.send(
+            await self.notifier.send(
                 f"策略: {signal.strategy_id}\n"
                 f"方向: {pos_side.upper()}\n"
                 f"价格: {entry_price}\n"
@@ -208,10 +208,10 @@ class MATrader:
                 f"止盈: {signal.take_profit}",
                 title=f"🚀 MA策略开仓成功"
             )
-            
+
         except Exception as e:
             self.logger.error(f"开仓失败: {e}", exc_info=True)
-            self.notifier.send_error_notification(f"MA开仓 {signal.type}", str(e))
+            await self.notifier.send_error_notification(f"MA开仓 {signal.type}", str(e))
 
     async def _check_position_exit(self):
         """检查所有持仓的退出条件"""
@@ -236,7 +236,7 @@ class MATrader:
                 self.position_tracker.close_position(strategy_id)
                 
                 # 通知
-                self.notifier.send(
+                await self.notifier.send(
                     f"策略: {strategy_id}\n"
                     f"原因: {exit_reason}\n"
                     f"平仓价格: {self.current_price}\n"

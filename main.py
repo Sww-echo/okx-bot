@@ -16,8 +16,9 @@ import os
 import ssl
 import signal
 
-# 忽略 SSL 证书验证（仅用于开发环境）
-ssl._create_default_https_context = ssl._create_unverified_context
+# SSL 证书验证：仅当环境变量 DISABLE_SSL_VERIFY=1 时才禁用（开发/调试用）
+if os.getenv('DISABLE_SSL_VERIFY', '0') == '1':
+    ssl._create_default_https_context = ssl._create_unverified_context
 
 from src.config.settings import TradingConfig
 from src.utils.logging import LogConfig

@@ -98,7 +98,7 @@ class GridTrader:
             
             # 发送启动通知
             threshold = self.config.FLIP_THRESHOLD(self.config.INITIAL_GRID)
-            self.notifier.send_startup_notification(
+            await self.notifier.send_startup_notification(
                 target_symbol,
                 self.grid_strategy.base_price,
                 self.grid_strategy.grid_size,
@@ -109,7 +109,7 @@ class GridTrader:
             
         except Exception as e:
             self.logger.error(f"初始化失败: {str(e)}", exc_info=True)
-            self.notifier.send_error_notification("初始化", self.config.SYMBOL, str(e))
+            await self.notifier.send_error_notification("初始化", self.config.SYMBOL, str(e))
             raise
 
     async def _check_initial_funds(self):
@@ -237,7 +237,7 @@ class GridTrader:
                 'profit': estimated_profit
             })
             
-            self.notifier.send_trade_notification(
+            await self.notifier.send_trade_notification(
                 side, self.config.SYMBOL, price, amount, total, self.grid_strategy.grid_size
             )
             
@@ -247,7 +247,7 @@ class GridTrader:
             
         except Exception as e:
             self.logger.error(f"网格交易执行失败: {str(e)}", exc_info=True)
-            self.notifier.send_error_notification(f"{side} 交易", self.config.SYMBOL, str(e))
+            await self.notifier.send_error_notification(f"{side} 交易", self.config.SYMBOL, str(e))
         finally:
             self.buying_or_selling = False
 
@@ -382,21 +382,21 @@ class GridTrader:
                                 amount_msg = f"{final_amount:.4f}"
                                 total_msg = f"总金额: {total_val:.2f} USDT"
 
-                            self.notifier.send(
-                                f"已自动补足底仓\n数量: {amount_msg}\n{total_msg}", 
+                            await self.notifier.send(
+                                f"已自动补足底仓\n数量: {amount_msg}\n{total_msg}",
                                 title="📉 低仓位自动补仓"
                             )
                         else:
                             # 降级：使用预估值
-                            self.notifier.send(
-                                f"已自动补足底仓 (预估)\n数量: {amount}\n金额: {target_value_usdt:.2f} USDT", 
+                            await self.notifier.send(
+                                f"已自动补足底仓 (预估)\n数量: {amount}\n金额: {target_value_usdt:.2f} USDT",
                                 title="📉 低仓位自动补仓"
                             )
                     except Exception as inner_e:
                         self.logger.error(f"获取底仓成交详情失败: {inner_e}")
                         # 降级发送
-                        self.notifier.send(
-                            f"已自动补足底仓\n数量: {amount}\n金额: {target_value_usdt:.2f} USDT", 
+                        await self.notifier.send(
+                            f"已自动补足底仓\n数量: {amount}\n金额: {target_value_usdt:.2f} USDT",
                             title="📉 低仓位自动补仓"
                         )
                 except Exception as e:
@@ -438,7 +438,7 @@ class GridTrader:
 
         # 3. 发送关闭通知
         try:
-            self.notifier.send(
+            await self.notifier.send(
                 f"- 基准价: **{self.grid_strategy.base_price:.4f}**\n"
                 f"- 网格大小: **{self.grid_strategy.grid_size:.2f}%**\n"
                 f"- 最后价格: **{self.current_price:.4f}**",
@@ -461,7 +461,7 @@ class GridTrader:
         self.paused = paused
         status = "暂停" if paused else "恢复"
         self.logger.info(f"交易系统已{status}")
-        self.notifier.send(f"交易系统已手动{status}", title=f"🛑 系统{status}")
+        await self.notifier.send(f"交易系统已手动{status}", title=f"🛑 系统{status}")
 
     async def close_all_positions(self):
         """一键平仓：市价平掉所有持仓并暂停"""
@@ -494,7 +494,7 @@ class GridTrader:
                     )
                     self.logger.info(f"现货持仓已平: {balance} {self.config.BASE_SYMBOL}")
 
-            self.notifier.send(f"已执行一键平仓操作，交易暂停。", title="⚠️ 一键平仓执行")
+            await self.notifier.send(f"已执行一键平仓操作，交易暂停。", title="⚠️ 一键平仓执行")
             return True
         except Exception as e:
             self.logger.error(f"一键平仓失败: {str(e)}", exc_info=True)

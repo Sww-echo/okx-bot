@@ -38,7 +38,7 @@ def format_trade_message(
 {direction_emoji} {direction_text} {symbol}
 ━━━━━━━━━━━━━━━━━━━━
 💰 价格：{price:.2f} USDT
-📊 数量：{amount:.4f} OKB
+📊 数量：{amount:.4f}
 💵 金额：{total:.2f} USDT
 📈 网格：{grid_size}%
 """

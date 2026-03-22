@@ -93,25 +93,6 @@ class GridStrategy:
             
         return None, price_diff_pct
 
-    def check_flip_signal(self, current_price: float, flip_threshold_func) -> bool:
-        """
-        检查是否需要翻转 (大幅偏离)
-        
-        Args:
-            current_price: 当前价格
-            flip_threshold_func: 计算翻转阈值的函数
-            
-        Returns:
-            是否触发翻转信号
-        """
-        if self.base_price <= 0:
-            return False
-            
-        price_diff = abs(current_price - self.base_price)
-        threshold = self.base_price * flip_threshold_func(self.grid_size)
-        
-        return price_diff >= threshold
-
 
 # 导出
 __all__ = ['GridStrategy']

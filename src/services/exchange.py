@@ -100,13 +100,22 @@ class ExchangeClient:
         self.savings_api = Savings.SavingsAPI(**common_params)
     
     def _verify_credentials(self):
-        """验证API密钥是否存在"""
-        required_env = ['OKX_API_KEY', 'OKX_SECRET_KEY', 'OKX_PASSPHRASE']
-        missing = [var for var in required_env if not os.getenv(var)]
-        if missing:
-            error_msg = f"缺少环境变量: {', '.join(missing)}"
-            self.logger.critical(error_msg)
-            raise EnvironmentError(error_msg)
+        """验证API密钥是否存在（根据当前交易模式检查对应密钥）"""
+        if self.flag == '1':
+            # 模拟盘：优先检查 DEMO 密钥，回退到实盘密钥
+            has_demo = all(os.getenv(f'OKX_DEMO_{k}') for k in ['API_KEY', 'SECRET_KEY', 'PASSPHRASE'])
+            has_real = all(os.getenv(f'OKX_{k}') for k in ['API_KEY', 'SECRET_KEY', 'PASSPHRASE'])
+            if not has_demo and not has_real:
+                error_msg = "缺少模拟盘环境变量: OKX_DEMO_API_KEY/OKX_DEMO_SECRET_KEY/OKX_DEMO_PASSPHRASE (或 OKX_API_KEY 等)"
+                self.logger.critical(error_msg)
+                raise EnvironmentError(error_msg)
+        else:
+            required_env = ['OKX_API_KEY', 'OKX_SECRET_KEY', 'OKX_PASSPHRASE']
+            missing = [var for var in required_env if not os.getenv(var)]
+            if missing:
+                error_msg = f"缺少环境变量: {', '.join(missing)}"
+                self.logger.critical(error_msg)
+                raise EnvironmentError(error_msg)
 
     # ==================== 市场数据 ====================
     
@@ -196,7 +205,7 @@ class ExchangeClient:
         self.logger.debug(f"获取行情数据 {symbol}...")
         start = datetime.now()
         try:
-            result = self.market_api.get_ticker(instId=symbol.replace('/', '-'))
+            result = await asyncio.to_thread(self.market_api.get_ticker, instId=symbol.replace('/', '-'))
             if result['code'] == '0':
                 ticker = result['data'][0]
                 latency = (datetime.now() - start).total_seconds()
@@ -224,7 +233,8 @@ class ExchangeClient:
             }
             bar = bar_map.get(timeframe, timeframe.upper())
             
-            result = self.market_api.get_candlesticks(
+            result = await asyncio.to_thread(
+                self.market_api.get_candlesticks,
                 instId=symbol.replace('/', '-'),
                 bar=bar,
                 limit=str(limit or 100)
@@ -314,7 +324,7 @@ class ExchangeClient:
             return self.funding_balance_cache['data']
         
         try:
-            result = self.funding_api.get_balances()
+            result = await asyncio.to_thread(self.funding_api.get_balances)
             if result['code'] == '0':
                 balances = {"USDT": 0.0, BASE_CURRENCY: 0.0}
                 for item in result['data']:
