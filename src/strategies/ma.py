@@ -120,7 +120,7 @@ class MAStrategy:
                     if self.config.VOLUME_CONFIRM_ENABLED:
                         current_vol = lines.get('volume', 0)
                         vol_ma = lines.get('volume_ma', 0)
-                        if vol_ma > 0 and current_vol < vol_ma * 1.5:
+                        if vol_ma > 0 and current_vol < vol_ma * self.config.VOLUME_MULTIPLIER:
                             vol_ok = False
                             
                     if vol_ok:
@@ -150,7 +150,7 @@ class MAStrategy:
                     if self.config.VOLUME_CONFIRM_ENABLED:
                         current_vol = lines.get('volume', 0)
                         vol_ma = lines.get('volume_ma', 0)
-                        if vol_ma > 0 and current_vol < vol_ma * 1.5:
+                        if vol_ma > 0 and current_vol < vol_ma * self.config.VOLUME_MULTIPLIER:
                             vol_ok = False
                             
                     if vol_ok:
@@ -176,7 +176,7 @@ class MAStrategy:
         # ==================== 策略 B: MA20 回踩 ====================
         # 拦截过滤
         adx_ok = True
-        if self.config.ADX_FILTER_ENABLED and adx is not None and adx < 25:
+        if self.config.ADX_FILTER_ENABLED and adx is not None and adx < self.config.ADX_MIN:
             adx_ok = False
             
         macd_ok = True
@@ -190,23 +190,25 @@ class MAStrategy:
             ma20 = lines['MA20']
             atr = lines.get('ATR', 0)
             
+            touch_tol = ma20 * self.config.MA20_TOUCH_TOLERANCE
+
             if self.current_state == MarketState.TREND_LONG:
-                if low_price <= ma20 and current_price >= ma20:
+                if low_price <= (ma20 + touch_tol) and current_price >= (ma20 - touch_tol):
                      sl_distance = atr * self.config.ATR_MULTIPLIER if atr > 0 else ma20 * 0.02
                      filter_info = f"ADX:{adx:.1f}" if adx else ""
                      return self._create_signal(
                          'OPEN_LONG', current_price,
-                         f"策略B: 上涨回踩 (MA20:{ma20:.2f} {filter_info})",
+                         f"策略B: 上涨回踩 (MA20:{ma20:.2f}, tol:{self.config.MA20_TOUCH_TOLERANCE:.4f} {filter_info})",
                          'B', stop_loss_price=ma20 - sl_distance
                      )
-    
+
             if self.current_state == MarketState.TREND_SHORT:
-                if high_price >= ma20 and current_price <= ma20:
+                if high_price >= (ma20 - touch_tol) and current_price <= (ma20 + touch_tol):
                     sl_distance = atr * self.config.ATR_MULTIPLIER if atr > 0 else ma20 * 0.02
                     filter_info = f"ADX:{adx:.1f}" if adx else ""
                     return self._create_signal(
                         'OPEN_SHORT', current_price,
-                        f"策略B: 下跌受阻 (MA20:{ma20:.2f} {filter_info})",
+                        f"策略B: 下跌受阻 (MA20:{ma20:.2f}, tol:{self.config.MA20_TOUCH_TOLERANCE:.4f} {filter_info})",
                         'B', stop_loss_price=ma20 + sl_distance
                     )
                 
